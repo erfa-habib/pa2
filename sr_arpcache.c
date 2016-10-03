@@ -17,7 +17,25 @@
   See the comments in the header file for an idea of what it should look like.
 */
 void sr_arpcache_sweepreqs(struct sr_instance *sr) { 
-    /* Fill this in */
+    struct sr_arpreq *request;
+	for (request = sr->cache->requests; request != NULL; request = request->next){
+		handle_arpreq(request);
+	}	
+}
+
+void handle_arpreq(struct sr_arpreq *request) {
+	/*
+	PSEUDO CODE
+		function handle_arpreq(req):
+		   if difftime(now, req->sent) > 1.0
+			   if req->times_sent >= 5:
+				   send icmp host unreachable to source addr of all pkts waiting
+					 on this request
+				   arpreq_destroy(req)
+			   else:
+				   send arp request
+				   req->sent = now
+				   req->times_sent++*/
 }
 
 /* You should not need to touch the rest of this code. */
