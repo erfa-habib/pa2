@@ -18,7 +18,7 @@
 */
 void sr_arpcache_sweepreqs(struct sr_instance *sr) { 
     struct sr_arpreq *request;
-	for (request = sr->cache->requests; request != NULL; request = request->next){
+	for (request = &sr->cache->requests; request != NULL; request = request->next){
 		handle_arpreq(request);
 	}	
 }
@@ -36,6 +36,7 @@ void handle_arpreq(struct sr_arpreq *request) {
 				   send arp request
 				   req->sent = now
 				   req->times_sent++*/
+	
 }
 
 /* You should not need to touch the rest of this code. */
