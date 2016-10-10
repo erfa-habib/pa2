@@ -84,18 +84,21 @@ void sr_handlepacket(struct sr_instance* sr,
   
   sr_ethernet_hdr_t *ether_hdr = (sr_ethernet_hdr_t *) packet;
   
+  /* Get the ethernet interface */
+  
+  struct sr_if *sr_ether_if = sr_get_interface(sr, interface);
+  
   /* Packet type check: IP, ARP, or neither */
   
-  switch (htons(ether_hdr->ether_type)) {
+  switch (ntohs(ether_hdr->ether_type)) {
 	case ethertype_arp:
 		/* ARP packet */
 		
 		printf("Received ARP packet\n");
 		
-		/* enum sr_arp_opcode for checking requests and replies */
-		/* Get the ARP header from the packet */
+		sr_handleARP(sr, packet, ether_hdr, sr_ether_if, interface, len);
 		
-		sr_arp_hdr_t *arp_hdr = (sr_arp_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t));
+		break;
 		
 	case ethertype_ip:
 		/* IP packet */
@@ -103,10 +106,51 @@ void sr_handlepacket(struct sr_instance* sr,
 		printf("Received IP packet\n");
 		
 		/* check sr_ip_protocol later */
+		/* Get the IP header from the packet */
+		
+		sr_ip_hdr_t *ip_hdr = (sr_ip_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t));
+		
+		break;
+		
 	default:
 		/* What do we do if it's neither? */
-		printf("Incorrect protocol type received: %d\n", ether_hdr->ether_type);
+		printf("Incorrect protocol type received: %u\n", (unsigned)ether_hdr->ether_type);
 	}
 
 }/* end sr_ForwardPacket */
 
+void sr_handleARP(struct sr_instance* sr, uint8_t *packet, sr_ethernet_hdr_t *ether_hdr, struct sr_if *sr_ether_if, char* interface, unsigned int len) {
+	/* Handles ARP requests and ARP replies */
+	
+	/* Get the ARP header from the packet */
+	sr_arp_hdr_t *arp_hdr = (sr_arp_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t));
+	
+	/* Check to make sure we are handling Ethernet format */
+	if (ntohs(arp_hdr->ar_hrd) != arp_hrd_ethernet) {
+		printf ("Wrong hardware address format. Only Ethernet is supported.\n");
+		return;
+	}
+	
+	/* Opcode check: Request, reply, or neither */
+	switch (ntohs(arp_hdr->ar_op)) {
+		case arp_op_request:
+			/* ARP request  */
+			
+			break;
+		case arp_op_reply:
+			/* ARP reply */
+			
+			printf("ARP reply to %lu\n", (unsigned long)arp_hdr->ar_sip);
+			
+			/* Queue the packet for this IP */
+			struct sr_arpreq *queued;
+			queued = sr_arpcache_queuereq(&sr->cache, arp_hdr->ar_sip, packet, len, interface);
+			
+			/* Free the packet to reduce copies */
+			free(packet);
+		
+			break;
+		default:
+			printf("Incorrect ARP opcode. Only ARP requests and replies are handled.\n");
+	}
+}

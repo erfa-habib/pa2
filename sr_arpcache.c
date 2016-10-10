@@ -80,9 +80,9 @@ void handle_arpreq(struct sr_arpreq *request, struct sr_arpcache *cache) {
 }
 
 void sr_arpcache_sweepreqs(struct sr_instance *sr) { 
-    struct sr_arpreq *request;
-	struct sr_arpreq *next;
 	struct sr_arpcache *cache = &sr->cache;
+    struct sr_arpreq *request = cache->requests;
+	struct sr_arpreq *next = request->next;
 	
 	/*
 	Since handle_arpreq as defined in the comments above could 	destroy your
@@ -110,9 +110,6 @@ void sr_arpcache_sweepreqs(struct sr_instance *sr) {
 		entry = (sr->cache).entries + i;
 		printf("MAC %s, IP %lu, time %lu, valid %d\n", entry->mac, (unsigned long)entry->ip, (unsigned long)entry->added, entry->valid);
 	}*/
-	
-	request = cache->requests;
-	next = request->next;
 	
 	for (; request != NULL; request = next){
 		next = request->next;
