@@ -10,20 +10,28 @@
 #include "sr_router.h"
 #include "sr_if.h"
 #include "sr_protocol.h"
+#include "sr_utils.h"
+
+#define ICMP_ECHO 0
+#define ICMP_DEST_UNREACHABLE 3
+#define ICMP_DEST_NET_UNREACHABLE_CODE 0
+#define ICMP_DEST_HOST_UNREACHABLE_CODE 1
+#define ICMP_DEST_PORT_UNREACHABLE_CODE 3
+#define ICMP_TIME_EXCEEDED 11
+#define ICMP_TIME_EXCEEDED_CODE 0
+
 
 /* 
   This function gets called every second. For each request sent out, we keep
   checking whether we should resend an request or destroy the arp request.
   See the comments in the header file for an idea of what it should look like.
 */
-void sr_arpcache_sweepreqs(struct sr_instance *sr) { 
-    struct sr_arpreq *request;
-	for (request = &sr->cache->requests; request != NULL; request = request->next){
-		handle_arpreq(request);
-	}	
+
+void create_icmp(uint8_t *buf, uint8_t type, uint8_t code){
+
 }
 
-void handle_arpreq(struct sr_arpreq *request) {
+void handle_arpreq(struct sr_arpreq *request, struct sr_arpcache *cache) {
 	/*
 	PSEUDO CODE
 		function handle_arpreq(req):
@@ -35,8 +43,81 @@ void handle_arpreq(struct sr_arpreq *request) {
 			   else:
 				   send arp request
 				   req->sent = now
-				   req->times_sent++*/
+				   req->times_sent++
+	*/
+	time_t t = time(NULL);
 	
+	if (difftime(t, request->sent) > 1.0) {
+		/*
+		struct sr_packet *packet;
+		for (packet = request->packets; packet != NULL; packet = packet->next) {
+			print_hdrs(packet->buf, packet->len);
+		}*/
+		if (request->times_sent == 5) {
+			struct sr_packet *packet;
+				
+			printf("Send icmp error to this packet\n");
+			
+			for (packet = request->packets; packet != NULL; packet = packet->next) {
+				print_hdrs(packet->buf, packet->len);
+				
+				/* create ICMP message to send */
+			
+				/* get all lengths for ICMP */
+			
+				sr_icmp_t3_hdr_t *mes;
+				mes = (sr_icmp_t3_hdr_t *)malloc(packet->len + sizeof(sr_icmp_t3_hdr_t));
+			}
+			
+			/* Delete the request from entry table */
+			sr_arpreq_destroy(cache, request);
+		} else {
+			/* ARP reply if the target IP address is one of your router’s IP addresses. In the case of an ARP reply, you should only cache the entry if the target IP address is one of your router’s IP addresses.
+			Note that ARP requests are sent to the broadcast MAC address (ff-ff-ff-ff-ff-ff). ARP replies are sent directly to the requester’s MAC address.*/
+			request->times_sent += 1;
+		}
+	}
+}
+
+void sr_arpcache_sweepreqs(struct sr_instance *sr) { 
+    struct sr_arpreq *request;
+	struct sr_arpreq *next;
+	struct sr_arpcache *cache = &sr->cache;
+	
+	/*
+	Since handle_arpreq as defined in the comments above could 	destroy your
+	current request, make sure to save the next pointer before calling
+	handle_arpreq when traversing through the ARP requests linked list.
+	*/
+	
+	/*
+	if (cache == NULL) {
+		printf("No cache\n");
+	} else {
+		printf("Got a cache\n");
+	}
+	
+	if (cache->requests == NULL) {
+		printf("No requests\n");
+	} else {
+		printf("Got a request\n");
+	}
+	
+	struct sr_arpentry *entry;
+	int i;
+	for (i = 0; i < SR_ARPCACHE_SZ; i++){
+		printf("Arpcache stuff\n");
+		entry = (sr->cache).entries + i;
+		printf("MAC %s, IP %lu, time %lu, valid %d\n", entry->mac, (unsigned long)entry->ip, (unsigned long)entry->added, entry->valid);
+	}*/
+	
+	request = cache->requests;
+	next = request->next;
+	
+	for (; request != NULL; request = next){
+		next = request->next;
+		handle_arpreq(request, cache);
+	}	
 }
 
 /* You should not need to touch the rest of this code. */
@@ -255,6 +336,8 @@ void *sr_arpcache_timeout(void *sr_ptr) {
                 cache->entries[i].valid = 0;
             }
         }
+		
+		printf("SWEEPREQS\n");
         
         sr_arpcache_sweepreqs(sr);
 

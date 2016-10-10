@@ -79,6 +79,34 @@ void sr_handlepacket(struct sr_instance* sr,
   printf("*** -> Received packet of length %d \n",len);
 
   /* fill in code here */
+  
+  /* Get the ethernet header from the packet */
+  
+  sr_ethernet_hdr_t *ether_hdr = (sr_ethernet_hdr_t *) packet;
+  
+  /* Packet type check: IP, ARP, or neither */
+  
+  switch (htons(ether_hdr->ether_type)) {
+	case ethertype_arp:
+		/* ARP packet */
+		
+		printf("Received ARP packet\n");
+		
+		/* enum sr_arp_opcode for checking requests and replies */
+		/* Get the ARP header from the packet */
+		
+		sr_arp_hdr_t *arp_hdr = (sr_arp_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t));
+		
+	case ethertype_ip:
+		/* IP packet */
+		
+		printf("Received IP packet\n");
+		
+		/* check sr_ip_protocol later */
+	default:
+		/* What do we do if it's neither? */
+		printf("Incorrect protocol type received: %d\n", ether_hdr->ether_type);
+	}
 
 }/* end sr_ForwardPacket */
 
