@@ -143,8 +143,8 @@ void sr_handleARP(struct sr_instance* sr, uint8_t *packet, sr_ethernet_hdr_t *et
 			printf("ARP reply to %lu\n", (unsigned long)arp_hdr->ar_sip);
 			
 			/* Queue the packet for this IP */
-			struct sr_arpreq *queued;
-			queued = sr_arpcache_queuereq(&sr->cache, arp_hdr->ar_sip, packet, len, interface);
+			struct sr_arpreq *cached;
+			cached = sr_arpcache_insert(&sr->cache, arp_hdr->ar_sha, arp_hdr->ar_sip);
 			
 			/* Free the packet to reduce copies */
 			free(packet);
