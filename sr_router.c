@@ -14,6 +14,7 @@
 #include <stdio.h>
 #include <assert.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "sr_if.h"
 #include "sr_rt.h"
@@ -77,26 +78,43 @@ void sr_handlepacket(struct sr_instance* sr,
   assert(interface);
 
   printf("*** -> Received packet of length %d \n",len);
-
-  /* fill in code here */
+  
+  /* Check if packet is smaller than it should be */
+  if (sizeof(packet)/sizeof(uint8_t) != len) {
+	printf("Received a corrupted packet.\n");
+	return;
+  } 
   
   /* Get the ethernet header from the packet */
-  
   sr_ethernet_hdr_t *ether_hdr = (sr_ethernet_hdr_t *) packet;
   
   /* Get the ethernet interface */
-  
   struct sr_if *sr_ether_if = sr_get_interface(sr, interface);
   
+  /* Check whether we found an interface corresponding to the name */
+  if (sr_ether_if) {
+	printf("Interface name: %s\n", sr_ether_if->name);
+  } else {
+	printf("Invalid interface found.\n");
+	return;
+  }
+ 
   /* Packet type check: IP, ARP, or neither */
-  
   switch (ntohs(ether_hdr->ether_type)) {
 	case ethertype_arp:
 		/* ARP packet */
 		
 		printf("Received ARP packet\n");
 		
-		sr_handleARP(sr, packet, ether_hdr, sr_ether_if, interface, len);
+		/* Get the ARP header from the packet */
+		sr_arp_hdr_t *arp_hdr = (sr_arp_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t));
+		
+		/* Check to make sure we are handling Ethernet format */
+		if (ntohs(arp_hdr->ar_hrd) != arp_hrd_ethernet) {
+			printf ("Wrong hardware address format. Only Ethernet is supported.\n");
+		} else {
+			sr_handleARP(sr, ether_hdr, sr_ether_if, arp_hdr);
+		}
 		
 		break;
 		
@@ -138,22 +156,40 @@ void sr_handlepacket(struct sr_instance* sr,
 
 }/* end sr_ForwardPacket */
 
-void sr_handleARP(struct sr_instance* sr, uint8_t *packet, sr_ethernet_hdr_t *ether_hdr, struct sr_if *sr_ether_if, char* interface, unsigned int len) {
+void sr_handleARP(struct sr_instance* sr, sr_ethernet_hdr_t *ether_hdr, struct sr_if *sr_ether_if, sr_arp_hdr_t *arp_hdr) {
 	/* Handles ARP requests and ARP replies */
-	
-	/* Get the ARP header from the packet */
-	sr_arp_hdr_t *arp_hdr = (sr_arp_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t));
-	
-	/* Check to make sure we are handling Ethernet format */
-	if (ntohs(arp_hdr->ar_hrd) != arp_hrd_ethernet) {
-		printf ("Wrong hardware address format. Only Ethernet is supported.\n");
-		return;
-	}
 	
 	/* Opcode check: Request, reply, or neither */
 	switch (ntohs(arp_hdr->ar_op)) {
-		case arp_op_request:
+		case arp_op_request: ;
 			/* ARP request  */
+			
+			/* Check if the request is for this routers IP */
+			/* Find the router the IP address corresponds to*/
+			struct sr_if *router_if;
+			
+			for (router_if = sr->if_list; router_if != NULL; router_if = router_if->next) {
+				if (router_if->ip == arp_hdr->ar_tip) {
+					break;
+				}
+			}
+			
+			/* Send a reply back to the sender IP address */
+			if (router_if) {
+				unsigned int len = sizeof(sr_ethernet_hdr_t *) + sizeof(sr_arp_hdr_t *);
+				uint8_t *packet = malloc(sizeof(uint8_t) * len);
+				
+				/* Set up reply with proper information */
+				set_eth_header(packet, ether_hdr);
+				
+				/* Set up the ARP header */
+				set_arp_header(packet+sizeof(sr_ethernet_hdr_t), router_if, arp_hdr);
+								
+				/* Send packet and free the packet from memory */
+				sr_send_packet(sr, packet, len, router_if->name);
+				free(packet);
+				
+			}
 			
 			break;
 		case arp_op_reply:
@@ -164,21 +200,23 @@ void sr_handleARP(struct sr_instance* sr, uint8_t *packet, sr_ethernet_hdr_t *et
 			/* Queue the packet for this IP */
 			struct sr_arpreq *cached;
 			cached = sr_arpcache_insert(&sr->cache, arp_hdr->ar_sha, arp_hdr->ar_sip);
-			
-			/* Free the packet to reduce copies */
-			free(packet);
 		
 			break;
 		default:
 			printf("Incorrect ARP opcode. Only ARP requests and replies are handled.\n");
 	}
 }
+<<<<<<< HEAD
 
 void sr_handleIP(struct sr_instance* sr, 
         uint8_t *packet, 
         sr_ip_hdr_t *ip_hdr,
         unsigned int len, 
         char * interface)
+=======
+
+void sr_handleIP(struct sr_instance* sr, uint8_t *packet, sr_ip_hdr_t *ip_hdr)
+>>>>>>> 94cc042739705cdc2cddc291b2acbaa0a49d1b5d
 {
     /*destination to one of the router's interface*/
     
@@ -207,5 +245,34 @@ void sr_handleIP(struct sr_instance* sr,
     }
     /* if it is for elsewhere*/
     ip_hdr->ip_ttl--;
-       
+}
+
+void set_arp_header(uint8_t *packet, struct sr_if *router_if, sr_arp_hdr_t *arp_hdr) {
+	/* Sets the fields in the arp header for arp packets */
+	
+	sr_arp_hdr_t *arp_hdr_reply = (sr_arp_hdr_t *)packet;
+	
+	arp_hdr_reply->ar_hrd = htons(arp_hrd_ethernet); /* hardware address */
+	arp_hdr_reply->ar_pro = htons(ethertype_arp); /* ethernet type */
+	arp_hdr_reply->ar_hln = ETHER_ADDR_LEN; /*len of hardware address */
+	/* I'm not sure if this is the proper protocol address length */
+	struct sr_ip_hdr *ip;
+	arp_hdr_reply->ar_pln = ip->ip_hl; /* protocol address len */
+	arp_hdr_reply->ar_op =  htons(arp_op_reply); /* opcode */
+	memcpy (arp_hdr_reply->ar_sha, router_if->addr, ETHER_ADDR_LEN); /*sender hardware address */
+	arp_hdr_reply->ar_sip = router_if->ip; /* sender ip address */
+	memcpy (arp_hdr_reply->ar_tha, arp_hdr->ar_sha, ETHER_ADDR_LEN); /* target hardware address */
+	arp_hdr_reply->ar_tip = arp_hdr->ar_sip; /* target ip address	*/
+}
+
+void set_eth_header(uint8_t *packet, sr_ethernet_hdr_t *ether_hdr) {
+	/* Sets the fields in the ethernet header */
+	
+	/* Set up the Ethernet header */
+	sr_ethernet_hdr_t *ether_arp_reply = (sr_ethernet_hdr_t *)packet;
+	
+	/* note: uint8_t is not 1 bit so use the size */
+	memcpy(ether_arp_reply->ether_dhost, ether_hdr->ether_shost, (sizeof(uint8_t) * ETHER_ADDR_LEN)); /* dest ethernet address */
+	memcpy(ether_arp_reply->ether_shost, ether_hdr->ether_dhost, (sizeof(uint8_t) * ETHER_ADDR_LEN)); /* source ethernet address */
+	ether_arp_reply->ether_type = htons(ethertype_arp); /* packet type */
 }
