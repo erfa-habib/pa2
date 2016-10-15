@@ -70,6 +70,12 @@ void sr_handlepacket(struct sr_instance* , uint8_t * , unsigned int , char* );
 void sr_handleARP(struct sr_instance*, sr_ethernet_hdr_t *, struct sr_if *, struct sr_arp_hdr *);
 void set_arp_header(uint8_t *, struct sr_if *, struct sr_arp_hdr *);
 void set_eth_header(uint8_t *, struct sr_ethernet_hdr *);
+void sr_handle_ip(struct sr_instance* sr, uint8_t * packet,unsigned int len, char* interface);
+void sr_handle_icmp(struct sr_instance* sr, uint8_t * packet,unsigned int len, char* interface);
+int sr_send_icmp_packet(struct sr_instance *sr, uint8_t * original_pkt, uint32_t tip, uint8_t icmp_type, uint8_t icmp_code);
+struct sr_if * sr_search_interface_by_ip(struct sr_instance *sr, uint32_t ip);
+struct sr_rt * sr_search_route_table(struct sr_instance * sr,uint32_t ip);
+int sr_check_arp_send(struct sr_instance * sr, sr_ip_hdr_t * ip_packet, unsigned int len, struct sr_rt * rt_entry, char * interface);
 
 /* -- sr_if.c -- */
 void sr_add_interface(struct sr_instance* , const char* );
