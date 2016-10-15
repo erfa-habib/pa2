@@ -116,7 +116,7 @@ void sr_handlepacket(struct sr_instance* sr,
             if (ip_hdr->ip_sum==compute_cksum && ntohs(ip_hdr->ip_ttl)>1)
             {
                 /*hanle the right ip packet*/
-                sr_hanleIP(sr, packet, ip_hdr);
+                sr_hanleIP(sr, packet, ip_hdr, len, interface);
             }
             else
             {
@@ -174,7 +174,11 @@ void sr_handleARP(struct sr_instance* sr, uint8_t *packet, sr_ethernet_hdr_t *et
 	}
 }
 
-void sr_handleIP(struct sr_instance* sr, uint8_t *packet, sr_ip_hdr_t *ip_hdr)
+void sr_handleIP(struct sr_instance* sr, 
+        uint8_t *packet, 
+        sr_ip_hdr_t *ip_hdr,
+        unsigned int len, 
+        char * interface)
 {
     /*destination to one of the router's interface*/
     
@@ -183,11 +187,11 @@ void sr_handleIP(struct sr_instance* sr, uint8_t *packet, sr_ip_hdr_t *ip_hdr)
     {
         if(ntohs(ip_hdr->ip_dst)==if0->ip)//don't need ntohs here??
         {
-            switch (if0->ip_p)
+            switch (if0->ip_p)//need to use struct ip_protocol??
             {
                 case ip_protocol_icmp:
                 /* send reply*/
-
+                    handleICMP(sr, packet, len, interface)
                 break;
             default:
                 /* send ICMP port unreachable*/
