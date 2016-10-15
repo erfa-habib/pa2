@@ -13,7 +13,7 @@
 
 #include <stdio.h>
 #include <assert.h>
-
+#include <stdlib.h>
 
 #include "sr_if.h"
 #include "sr_rt.h"
@@ -105,17 +105,36 @@ void sr_handlepacket(struct sr_instance* sr,
 		
 		printf("Received IP packet\n");
 		
-		/* check sr_ip_protocol later */
-		/* Get the IP header from the packet */
 		
-		sr_ip_hdr_t *ip_hdr = (sr_ip_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t));
-		
-		break;
-		
-	default:
-		/* What do we do if it's neither? */
+		/*check 3 things: minimum length, checksum and TTL*/
+       if ((len-sizeof(sr_ethernet_hdr_t))>=20)
+       {
+		    /* Get the IP header from the packet */
+		    sr_ip_hdr_t *ip_hdr = (sr_ip_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t));
+            uint8_t *data = (uint8_t *)(ip_hdr+sizeof(sr_ip_hdr_t));
+            uint16_t compute_cksum= cksum (data, (len-sizeof(sr_ethernet_hdr_t)-sizeof(sr_ip_hdr_t));
+            if (ip_hdr->ip_sum==compute_cksum && ntohs(ip_hdr->ip_ttl)>1)
+            {
+                /*hanle the right ip packet*/
+                sr_hanleIP(sr, packet, ip_hdr);
+            }
+            else
+            {
+                /*just ignore it*/
+                printf("Recieved INVALID IP packet\n")
+            }
+       }
+       else
+       {
+            /*just ignore it*/
+           printf("Recieved INVALID IP packet\n")
+       }	
+	
+    default:
+		/* if it's neither, just ignore it */
 		printf("Incorrect protocol type received: %u\n", (unsigned)ether_hdr->ether_type);
 	}
+  }
 
 }/* end sr_ForwardPacket */
 
@@ -153,4 +172,36 @@ void sr_handleARP(struct sr_instance* sr, uint8_t *packet, sr_ethernet_hdr_t *et
 		default:
 			printf("Incorrect ARP opcode. Only ARP requests and replies are handled.\n");
 	}
+}
+
+void sr_handleIP(struct sr_instance* sr, uint8_t *packet, sr_ip_hdr_t *ip_hdr)
+{
+    /*destination to one of the router's interface*/
+    
+    struct sr_if* if0 =sr->if_list;
+    while(if0)
+    {
+        if(ntohs(ip_hdr->ip_dst)==if0->ip)//don't need ntohs here??
+        {
+            switch (if0->ip_p)
+            {
+                case ip_protocol_icmp:
+                /* send reply*/
+
+                break;
+            default:
+                /* send ICMP port unreachable*/
+                break;
+            }
+            return;
+        }
+        else
+        {
+            if0= next_if;
+            continue;
+        }
+    }
+    /* if it is for elsewhere*/
+    ip_hdr->ip_ttl--;
+       
 }
