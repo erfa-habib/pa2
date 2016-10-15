@@ -70,7 +70,7 @@ void sr_handlepacket(struct sr_instance* , uint8_t * , unsigned int , char* );
 void sr_handleARP(struct sr_instance*, sr_ethernet_hdr_t *, struct sr_if *, struct sr_arp_hdr *);
 void set_arp_header(uint8_t *, struct sr_if *, struct sr_arp_hdr *);
 void set_eth_header(uint8_t *, struct sr_ethernet_hdr *);
-void sr_handle_ip(struct sr_instance* sr, uint8_t * packet,unsigned int len, char* interface);
+void sr_handleIP(struct sr_instance* sr, uint8_t * packet,unsigned int len, char* interface);
 void sr_handle_icmp(struct sr_instance* sr, uint8_t * packet,unsigned int len, char* interface);
 int sr_send_icmp_packet(struct sr_instance *sr, uint8_t * original_pkt, uint32_t tip, uint8_t icmp_type, uint8_t icmp_code);
 struct sr_if * sr_search_interface_by_ip(struct sr_instance *sr, uint32_t ip);
