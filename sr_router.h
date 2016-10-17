@@ -42,11 +42,6 @@
 
 #define BROADCAST "\xff\xff\xff\xff\xff\xff"
 
-#define min(a,b) \
-   ({ __typeof__ (a) _a = (a); \
-       __typeof__ (b) _b = (b); \
-     _a > _b ? _b : _a; })
-
 /* forward declare */
 struct sr_if;
 struct sr_rt;
@@ -91,7 +86,7 @@ void send_arp_request(struct sr_instance *, struct sr_arpreq *, struct sr_if *);
 
 void set_eth_header(uint8_t *, uint8_t *, uint8_t *);
 
-/*void sr_handleIP(struct sr_instance* sr, uint8_t * packet,unsigned int len, char* interface);*/
+ void sr_handleIP(struct sr_instance*, uint8_t *, sr_ethernet_hdr_t *, struct sr_if *);
 
 int get_icmp_len(uint8_t, uint8_t, sr_ip_hdr_t *);
 void create_icmp(uint8_t *, uint8_t, uint8_t, sr_ip_hdr_t *, unsigned int);
