@@ -30,6 +30,23 @@
 #define INIT_TTL 255
 #define PACKET_DUMP_SIZE 1024
 
+/* Definitions to make our life easier */
+
+#define ICMP_ECHO 0
+#define ICMP_DEST_UNREACHABLE 3
+#define ICMP_DEST_NET_UNREACHABLE_CODE 0
+#define ICMP_DEST_HOST_UNREACHABLE_CODE 1
+#define ICMP_DEST_PORT_UNREACHABLE_CODE 3
+#define ICMP_TIME_EXCEEDED 11
+#define ICMP_TIME_EXCEEDED_CODE 0
+
+#define BROADCAST "\xff\xff\xff\xff\xff\xff"
+
+#define min(a,b) \
+   ({ __typeof__ (a) _a = (a); \
+       __typeof__ (b) _b = (b); \
+     _a > _b ? _b : _a; })
+
 /* forward declare */
 struct sr_if;
 struct sr_rt;
@@ -67,10 +84,18 @@ int sr_read_from_server(struct sr_instance* );
 /* -- sr_router.c -- */
 void sr_init(struct sr_instance* );
 void sr_handlepacket(struct sr_instance* , uint8_t * , unsigned int , char* );
+
 void sr_handleARP(struct sr_instance*, sr_ethernet_hdr_t *, struct sr_if *, struct sr_arp_hdr *);
 void set_arp_header(uint8_t *, unsigned short, unsigned char *, uint32_t, unsigned char *, uint32_t);
+void send_arp_request(struct sr_instance *, struct sr_arpreq *, struct sr_if *);
+
 void set_eth_header(uint8_t *, uint8_t *, uint8_t *);
-void sr_handleIP(struct sr_instance* sr, uint8_t * packet,unsigned int len, char* interface);
+
+/*void sr_handleIP(struct sr_instance* sr, uint8_t * packet,unsigned int len, char* interface);*/
+
+int get_icmp_len(uint8_t, uint8_t, sr_ip_hdr_t *);
+void create_icmp(uint8_t *, uint8_t, uint8_t, sr_ip_hdr_t *, unsigned int);
+
 void sr_handle_icmp(struct sr_instance* sr, uint8_t * packet,unsigned int len, char* interface);
 int sr_send_icmp_packet(struct sr_instance *sr, uint8_t * original_pkt, uint32_t tip, uint8_t icmp_type, uint8_t icmp_code);
 struct sr_if * sr_search_interface_by_ip(struct sr_instance *sr, uint32_t ip);

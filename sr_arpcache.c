@@ -12,111 +12,6 @@
 #include "sr_protocol.h"
 #include "sr_utils.h"
 
-#define ICMP_ECHO 0
-#define ICMP_DEST_UNREACHABLE 3
-#define ICMP_DEST_NET_UNREACHABLE_CODE 0
-#define ICMP_DEST_HOST_UNREACHABLE_CODE 1
-#define ICMP_DEST_PORT_UNREACHABLE_CODE 3
-#define ICMP_TIME_EXCEEDED 11
-#define ICMP_TIME_EXCEEDED_CODE 0
-
-#define BROADCAST "\xff\xff\xff\xff\xff\xff"
-
-#define min(a,b) \
-   ({ __typeof__ (a) _a = (a); \
-       __typeof__ (b) _b = (b); \
-     _a > _b ? _b : _a; })
-
-int get_icmp_len(uint8_t type, uint8_t code, sr_ip_hdr_t *orig_ip_hdr) {
-	/* Get the length of the ICMP given it's type and code since it
-	differs for every type */
-	
-	unsigned int icmp_pack_len;
-	unsigned int ip_pack_len = min(orig_ip_hdr->ip_len - (orig_ip_hdr->ip_hl * 4), 8) + 
-								(orig_ip_hdr->ip_hl * 4);
-	
-	switch(type)
-	{
-		case ICMP_DEST_UNREACHABLE:
-			icmp_pack_len = sizeof(sr_icmp_t3_hdr_t);
-			break;
-		default: 
-			/* Use the default ICMP header for the rest*/
-			icmp_pack_len = sizeof(icmp_hdr_t);              
-			break;
-	}
-	
-	return icmp_pack_len + ip_pack_len;
-	
-}
-
-
-void create_icmp(uint8_t *packet, uint8_t type, uint8_t code, sr_ip_hdr_t *orig_ip_hdr, unsigned int len){
-	/* Creates the ICMP error based on code. 
-	- Creates the IPv4 header, an 8-byte header
-	- All types contain IP header
-	- All types contain first 8 bytes of original datagram's data
-	- Copies the old IP header into the ICMP data section
-	- Performs a checksum
-	*/
-		
-	/* Set the proper ICMP header and data */
-	
-	icmp_hdr_t *icmp_packet = (icmp_hdr_t *)(packet + 
-			sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t));
-			
-	/* Set the common parts of the ICMP packet */
-	icmp_packet->icmp_type = type;
-	icmp_packet->icmp_code = code;
-	
-	switch(type)
-	{
-		case ICMP_DEST_UNREACHABLE: ;
-			/* next-hop MTU is the size of the packet that's too large for the IP MTU
-			on the router interface.
-			Tell it to expect the original packet size*/
-			/* Convert from default type header to type 3 header */
-			sr_icmp_t3_hdr_t *icmp3_packet = (sr_icmp_t3_hdr_t *)(packet + 
-					sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t));
-					
-			/* Set MTU */
-			icmp3_packet->next_mtu = orig_ip_hdr->ip_len;
-			
-			/* Copy the first 8 bytes of the original datagram and the old IP header */
-			memcpy(icmp3_packet->data, (uint8_t *)orig_ip_hdr, 
-				min(ICMP_DATA_SIZE, orig_ip_hdr->ip_len));
-				
-			/* Checksum */
-			icmp3_packet->icmp_sum = cksum((uint8_t *)icmp3_packet, len);
-			break;
-		default:
-			/* Copy the first 8 bytes of the original datagram and the old IP header */
-			memcpy(icmp_packet->data, (uint8_t *)orig_ip_hdr, 
-				min(ICMP_DATA_SIZE, orig_ip_hdr->ip_len));
-				
-			/* Checksum */
-			icmp_packet->icmp_sum = cksum((uint8_t *)icmp_packet, len);
-	}
-}
-
-void send_arp_request(struct sr_instance *sr, struct sr_arpreq *dest, struct sr_if *outgoing) {
-	/* Send an ARP request */
-	
-	/* Send the ARP request to the Gateway. Has to have MAC address ff-ff-ff-ff (broadcast) */
-	unsigned int len = sizeof(sr_ethernet_hdr_t) + sizeof(sr_arp_hdr_t);
-	uint8_t *packet = malloc(len);
-
-	/* Set the ARP Header */
-	set_arp_header(packet + sizeof(sr_ethernet_hdr_t), arp_op_request, outgoing->addr, outgoing->ip, (unsigned char *)BROADCAST, dest->ip);
-
-	/* Set the Ethernet header */
-	set_eth_header(packet, outgoing->addr, (unsigned char *)BROADCAST);
-	
-	/* Send the packet */
-	sr_send_packet(sr, packet, len, outgoing->name);
-	free(packet);
-}
-
 void handle_arpreq(struct sr_instance *sr, struct sr_arpreq *request) {
 	/*
 	PSEUDO CODE
@@ -134,11 +29,12 @@ void handle_arpreq(struct sr_instance *sr, struct sr_arpreq *request) {
 	time_t t = time(NULL);
 	
 	if (difftime(t, request->sent) > 1.0) {
+		
 		/*
 		struct sr_packet *packet;
 		for (packet = request->packets; packet != NULL; packet = packet->next) {
 			print_hdrs(packet->buf, packet->len);
-		}*/
+		} */
 		if (request->times_sent == 5) {
 			struct sr_packet *packet;
 				
@@ -180,6 +76,8 @@ void handle_arpreq(struct sr_instance *sr, struct sr_arpreq *request) {
 		} else {
 			/* ARP reply if the target IP address is one of your router’s IP addresses. In the case of an ARP reply, you should only cache the entry if the target IP address is one of your router’s IP addresses.
 			Note that ARP requests are sent to the broadcast MAC address (ff-ff-ff-ff-ff-ff). ARP replies are sent directly to the requester’s MAC address.*/
+			
+			send_arp_request(sr, request, sr_get_interface(sr, (request->packets)->iface));
 			
 			request->times_sent += 1;
 			time ( &request->sent );
