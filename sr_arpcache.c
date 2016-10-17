@@ -20,18 +20,84 @@
 #define ICMP_TIME_EXCEEDED 11
 #define ICMP_TIME_EXCEEDED_CODE 0
 
+#define min(a,b) \
+   ({ __typeof__ (a) _a = (a); \
+       __typeof__ (b) _b = (b); \
+     _a > _b ? _b : _a; })
 
-/* 
-  This function gets called every second. For each request sent out, we keep
-  checking whether we should resend an request or destroy the arp request.
-  See the comments in the header file for an idea of what it should look like.
-*/
-
-void create_icmp(uint8_t *buf, uint8_t type, uint8_t code){
-
+int get_icmp_len(uint8_t type, uint8_t code, sr_ip_hdr_t *orig_ip_hdr) {
+	/* Get the length of the ICMP given it's type and code since it
+	differs for every type */
+	
+	unsigned int icmp_pack_len;
+	unsigned int ip_pack_len = min(orig_ip_hdr->ip_len - (orig_ip_hdr->ip_hl * 4), 8) + 
+								(orig_ip_hdr->ip_hl * 4);
+	
+	switch(type)
+	{
+		case ICMP_DEST_UNREACHABLE:
+			icmp_pack_len = sizeof(sr_icmp_t3_hdr_t);
+			break;
+		default: 
+			/* Use the default ICMP header for the rest*/
+			icmp_pack_len = sizeof(icmp_hdr_t);              
+			break;
+	}
+	
+	return icmp_pack_len + ip_pack_len;
+	
 }
 
-void handle_arpreq(struct sr_arpreq *request, struct sr_arpcache *cache) {
+
+void create_icmp(uint8_t *packet, uint8_t type, uint8_t code, sr_ip_hdr_t *orig_ip_hdr, unsigned int len){
+	/* Creates the ICMP error based on code. 
+	- Creates the IPv4 header, an 8-byte header
+	- All types contain IP header
+	- All types contain first 8 bytes of original datagram's data
+	- Copies the old IP header into the ICMP data section
+	- Performs a checksum
+	*/
+		
+	/* Set the proper ICMP header and data */
+	
+	icmp_hdr_t *icmp_packet = (icmp_hdr_t *)(packet + 
+			sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t));
+			
+	/* Set the common parts of the ICMP packet */
+	icmp_packet->icmp_type = type;
+	icmp_packet->icmp_code = code;
+	
+	switch(type)
+	{
+		case ICMP_DEST_UNREACHABLE: ;
+			/* next-hop MTU is the size of the packet that's too large for the IP MTU
+			on the router interface.
+			Tell it to expect the original packet size*/
+			/* Convert from default type header to type 3 header */
+			sr_icmp_t3_hdr_t *icmp3_packet = (sr_icmp_t3_hdr_t *)(packet + 
+					sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t));
+					
+			/* Set MTU */
+			icmp3_packet->next_mtu = orig_ip_hdr->ip_len;
+			
+			/* Copy the first 8 bytes of the original datagram and the old IP header */
+			memcpy(icmp3_packet->data, (uint8_t *)orig_ip_hdr, 
+				min(ICMP_DATA_SIZE, orig_ip_hdr->ip_len));
+				
+			/* Checksum */
+			icmp3_packet->icmp_sum = cksum((uint8_t *)icmp3_packet, len);
+			break;
+		default:
+			/* Copy the first 8 bytes of the original datagram and the old IP header */
+			memcpy(icmp_packet->data, (uint8_t *)orig_ip_hdr, 
+				min(ICMP_DATA_SIZE, orig_ip_hdr->ip_len));
+				
+			/* Checksum */
+			icmp_packet->icmp_sum = cksum((uint8_t *)icmp_packet, len);
+	}
+}
+
+void handle_arpreq(struct sr_instance *sr, struct sr_arpreq *request) {
 	/*
 	PSEUDO CODE
 		function handle_arpreq(req):
@@ -61,27 +127,53 @@ void handle_arpreq(struct sr_arpreq *request, struct sr_arpcache *cache) {
 			for (packet = request->packets; packet != NULL; packet = packet->next) {
 				print_hdrs(packet->buf, packet->len);
 				
-				/* create ICMP message to send */
+				/* Get the corresponding Ethernet header */
+				sr_ethernet_hdr_t *ether_hdr = (sr_ethernet_hdr_t *) packet->buf;
+				
+				/* Get the corresponding IP header */
 			
-				/* get all lengths for ICMP */
+				sr_ip_hdr_t * ip_packet_hdr = (sr_ip_hdr_t *)(packet->buf + sizeof(sr_ethernet_hdr_t));
 			
-				sr_icmp_t3_hdr_t *mes;
-				mes = (sr_icmp_t3_hdr_t *)malloc(packet->len + sizeof(sr_icmp_t3_hdr_t));
+				/* get length for ICMP */
+				unsigned int icmp_len = get_icmp_len(ICMP_DEST_UNREACHABLE, ICMP_DEST_HOST_UNREACHABLE_CODE, ip_packet_hdr);
+				unsigned int len = icmp_len + sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t);
+				
+				uint8_t *buf = malloc(len);
+				
+				/* Set data for the Ethernet Header */
+				/* If dest MAC is empty, set it to our own */
+				set_eth_header(buf, ether_hdr);
+				
+				/* Set data for the IP Header */
+				
+				/* Set data for the ICMP error */
+				create_icmp(buf, ICMP_DEST_UNREACHABLE, ICMP_DEST_HOST_UNREACHABLE_CODE, ip_packet_hdr, icmp_len);
+				
+				/* Send the packet */
+				sr_send_packet(sr, buf, len, packet->iface);
+				free(buf);
+				
 			}
 			
 			/* Delete the request from entry table */
-			sr_arpreq_destroy(cache, request);
+			sr_arpreq_destroy(&sr->cache, request);
 		} else {
 			/* ARP reply if the target IP address is one of your router’s IP addresses. In the case of an ARP reply, you should only cache the entry if the target IP address is one of your router’s IP addresses.
 			Note that ARP requests are sent to the broadcast MAC address (ff-ff-ff-ff-ff-ff). ARP replies are sent directly to the requester’s MAC address.*/
 			request->times_sent += 1;
+			time ( &request->sent );
 		}
 	}
 }
 
+/* 
+  This function gets called every second. For each request sent out, we keep
+  checking whether we should resend an request or destroy the arp request.
+  See the comments in the header file for an idea of what it should look like.
+*/
+
 void sr_arpcache_sweepreqs(struct sr_instance *sr) { 
-	struct sr_arpcache *cache = &sr->cache;
-    struct sr_arpreq *request = cache->requests;
+    struct sr_arpreq *request = sr->cache.requests;
 	struct sr_arpreq *next = request->next;
 	
 	/*
@@ -113,7 +205,7 @@ void sr_arpcache_sweepreqs(struct sr_instance *sr) {
 	
 	for (; request != NULL; request = next){
 		next = request->next;
-		handle_arpreq(request, cache);
+		handle_arpreq(sr, request);
 	}	
 }
 
