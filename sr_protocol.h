@@ -117,7 +117,36 @@ struct icmp_hdr {
 typedef struct icmp_hdr icmp_hdr_t;
 
 
+/* type 0 ICMP header */
+struct sr_icmp_t0_hdr {
+        uint8_t icmp_type;
+        uint8_t icmp_code;
+        uint16_t icmp_sum;
+        uint16_t icmp_identifier;
+        uint16_t icmp_seq;
+        uint32_t timestamp;
+        uint8_t data[ICMP_DATA_SIZE];
+} __attribute__ ((packed)) ;
+typedef struct sr_icmp_t0_hdr sr_icmp_t0_hdr_t;
 
+
+
+/* type 11 ICMP header */
+struct sr_icmp_t11_hdr {
+        uint8_t icmp_type;
+        uint8_t icmp_code;
+        uint16_t icmp_sum;
+        uint32_t unused;
+        uint8_t data[ICMP_DATA_SIZE];
+} __attribute__ ((packed)) ;
+typedef struct sr_icmp_t11_hdr sr_icmp_t11_hdr_t;
+
+enum sr_icmp_type {
+      icmp_echo_reply = 0,
+      icmp_destination_unreachable = 3,
+      icmp_echo_request = 8,
+      icmp_time_exceed = 11,
+};
 
 /*
  * Structure of an internet header, naked of options.
