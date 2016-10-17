@@ -131,7 +131,7 @@ void sr_handlepacket(struct sr_instance* sr,
 			return;
 		}
   
-        sr_handleIP(sr, packet, ether_hdr, sr_ether_if);
+        sr_handleIP(sr, packet, len, ether_hdr, sr_ether_if);
         break;
     
     default:
@@ -169,24 +169,6 @@ void set_eth_header(uint8_t *packet, uint8_t *ether_shost, uint8_t *ether_dhost)
  
  /*
  
- void sr_handle_icmp(struct sr_instance * sr,
-                uint8_t * packet,
-                unsigned int len,
-                char * interface)
-{
-    if(len < sizeof(sr_ip_hdr_t) + sizeof(sr_icmp_hdr_t)){
-        perror("Invalid icmp packet\n");
-        return;
-    }
-    sr_ip_hdr_t * ip_packet = (sr_ip_hdr_t *)packet;
-    sr_icmp_hdr_t * icmp_packet = (sr_icmp_hdr_t *)(packet + sizeof(sr_ip_hdr_t));
-     // response to echo request //
-    if(icmp_packet->icmp_type == icmp_echo_request){
-        sr_send_icmp_packet(sr, (uint8_t *)ip_packet, ip_packet->ip_src,icmp_echo_reply, 0);
-    }
-    return;
-}
-
 void sr_send_icmp_packet(struct sr_instance *sr,
         uint8_t *original_pkt,
         uint32_t tip,
@@ -286,66 +268,35 @@ void sr_send_icmp_packet(struct sr_instance *sr,
     return -1; 
 } */
 
- void sr_handle_icmp(struct sr_instance * sr,
-                uint8_t * packet,
-                unsigned int len,
-                char * interface)
+void sr_send_icmp_packet(struct sr_instance *sr,
+        sr_ip_hdr_t * ip_packet_hdr,
+        uint8_t icmp_type,
+        uint8_t icmp_code,
+		sr_ethernet_hdr_t *ether_hdr,
+		struct sr_if *ether_if) 
 {
-    if(len < sizeof(sr_ip_hdr_t) + sizeof(sr_icmp_hdr_t)){
-        perror("Invalid icmp packet\n");
-        return;
-    }
-    sr_ip_hdr_t * ip_packet = (sr_ip_hdr_t *)packet;
-    sr_icmp_hdr_t * icmp_packet = (sr_icmp_hdr_t *)(packet + sizeof(sr_ip_hdr_t));
-     // response to echo request //
-    if(icmp_packet->icmp_type == icmp_echo_request){
-        sr_send_icmp_packet(sr, (uint8_t *)ip_packet, ip_packet->ip_src,icmp_echo_reply, 0);
-    }
-    return;
-}
+	/* Sends an ICMP packet */
+	printf("Start sending icmp packet.\n");
+    
+	struct sr_rt * route = sr_search_route_table(sr, ip_packet_hdr->ip_src);
+	
+	if(route) {
+		struct sr_if * local_if = sr_get_interface(sr, route->interface);
+		
+		if (!local_if) {
+			perror("Invalid interface");
+			return;
+		}
+		
+		unsigned int icmp_len;
+		uint8_t *icmp;
 
- void sr_handleIP(struct sr_instance* sr, uint8_t *packet, sr_ethernet_hdr_t *ether_hdr, struct sr_if *ether_if) {
-	/* Handles IP packets */ 
-	
-    /* Checking validation: TTL, checksum*/
-	
-	/* Retrieve IP header */
-    sr_ip_hdr_t * ip_packet_hdr = (sr_ip_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t));
-    
-	/* TTL */
-    if (ntohs(ip_packet_hdr->ip_ttl) <= 1){
-        sr_send_icmp_packet(sr, (uint8_t *)ip_packet_hdr, ip_packet_hdr->ip_src, icmp_time_exceed, 0);
-		return;
-    }
-	
-    /* Checksum */
-	/*
-    uint8_t *data=(uint8_t *)(ip_packet_hdr+sizof(sr_ip_hdr_t));
-    uint16_t compute_cksum=cksum(data, ip_packet_hdr->ip_hl*4); */
-	/* Note: checksum only refers to the IP header*/
-    if(ntohs(ip_packet_hdr->ip_sum) != cksum(ip_packet_hdr, ip_packet_hdr->ip_hl*4))
-    {
-        printf("Invalid IP Packet\n");
-        return;
-    }
-    
-    /* Check destination */ 
-    struct sr_if * local_interface = sr_search_interface_by_ip(sr, ip_packet_hdr->ip_dst);
-	
-    if (local_interface)
-    {
-        /* Destination is local interface */
-        switch(ip_packet_hdr->ip_p)
+        switch(icmp_type)
         {
-			unsigned int icmp_len;
-			uint8_t *icmp;
-			
-            case ip_protocol_icmp:
-				/* ICMP is an echo request */
-				printf ("ICMP ECHO REQUEST RECEIVED\n");
-				
+            case ICMP_ECHO: ;
+                
 				/* Get the ICMP header we received */
-				icmp_hdr_t *icmp_hdr = (icmp_hdr_t *) (ip_packet_hdr + ip_packet_hdr->ip_hl*4);
+				icmp_hdr_t *icmp_hdr = (icmp_hdr_t *) ((uint8_t *)ip_packet_hdr + ip_packet_hdr->ip_hl*4);
 				
 				/* Get the ICMP length*/
 				icmp_len = get_icmp_len(ICMP_ECHO, ICMP_ECHO, ip_packet_hdr);
@@ -378,7 +329,7 @@ void sr_send_icmp_packet(struct sr_instance *sr,
 				sr_send_packet(sr, icmp, icmp_reply_len, ether_if->name);
 				
                 break;
-            default: ;
+            case ICMP_DEST_UNREACHABLE: ;
 				/* Otherwise we send a Dest, port unreachable ICMP back in the
 				case that we get a TCP, UDP, or other protocol*/
 				icmp_len = get_icmp_len(ICMP_DEST_UNREACHABLE, ICMP_DEST_PORT_UNREACHABLE_CODE, ip_packet_hdr);
@@ -399,6 +350,77 @@ void sr_send_icmp_packet(struct sr_instance *sr,
 				
 				/* Send the ICMP reply back */
 				sr_send_packet(sr, icmp, len, ether_if->name);
+                break;
+            case ICMP_TIME_EXCEEDED: ;
+                break;
+        }
+		
+        struct sr_rt *entry = sr_search_route_table(sr, ip_packet_hdr->ip_src);
+        if (!entry) {
+           return;
+        }
+		
+		/*
+        return sr_check_arp_send(sr, ip_packet_hdr, packet_length, entry, entry->interface);
+		*/
+    }
+    return;
+}
+
+ void sr_handleIP(struct sr_instance* sr, uint8_t *packet, unsigned int len, sr_ethernet_hdr_t *ether_hdr, struct sr_if *ether_if) {
+	/* Handles IP packets */ 
+	
+    /* Checking validation: TTL, checksum*/
+	
+	/* Retrieve IP header */
+    sr_ip_hdr_t * ip_packet_hdr = (sr_ip_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t));
+    
+	/* TTL */
+    if (ntohs(ip_packet_hdr->ip_ttl) <= 1){
+        sr_send_icmp_packet(sr, ip_packet_hdr, ICMP_TIME_EXCEEDED, ICMP_TIME_EXCEEDED_CODE, ether_hdr, ether_if);
+		return;
+    }
+	
+    /* Checksum */
+    if(ntohs(ip_packet_hdr->ip_sum) != cksum(ip_packet_hdr, ip_packet_hdr->ip_hl*4))
+    {
+        printf("Invalid IP Packet\n");
+        return;
+    }
+    
+    /* Check destination */ 
+    struct sr_if * local_interface = sr_search_interface_by_ip(sr, ip_packet_hdr->ip_dst);
+	
+    if (local_interface)
+    {
+        /* Destination is local interface */
+        switch(ip_packet_hdr->ip_p)
+        {				
+			unsigned int icmp_len;
+			uint8_t *icmp;
+			
+            case ip_protocol_icmp:
+				/* ICMP is an echo request */
+				printf ("ICMP ECHO REQUEST RECEIVED\n");
+				
+				/* Check length */
+				if (len-sizeof(sr_ethernet_hdr_t) < (sizeof(sr_ip_hdr_t) + sizeof(sr_icmp_hdr_t))){
+					perror("Invalid ICMP packet\n");
+					return;
+				}
+				
+				/* If echo */
+				icmp_hdr_t *icmp_packet = (icmp_hdr_t *) ((uint8_t *)ip_packet_hdr + ip_packet_hdr->ip_hl*4);
+				
+				if(icmp_packet->icmp_type == ICMP_ECHO){
+					sr_send_icmp_packet(sr, ip_packet_hdr, ICMP_ECHO, ICMP_ECHO, ether_hdr, ether_if);
+				}
+				
+                break;
+            default: ;
+			
+				/* Otherwise send dest unreachable */
+				sr_send_icmp_packet(sr, ip_packet_hdr, ICMP_DEST_UNREACHABLE, ICMP_DEST_PORT_UNREACHABLE_CODE, ether_hdr, ether_if);
                 
                 break;
         }

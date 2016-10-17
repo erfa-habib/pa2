@@ -86,14 +86,14 @@ void send_arp_request(struct sr_instance *, struct sr_arpreq *, struct sr_if *);
 
 void set_eth_header(uint8_t *, uint8_t *, uint8_t *);
 
-void sr_handleIP(struct sr_instance*, uint8_t *, sr_ethernet_hdr_t *, struct sr_if *);
+void sr_handleIP(struct sr_instance*, uint8_t *, unsigned int, sr_ethernet_hdr_t *, struct sr_if *);
 void set_ip_header(uint8_t *, unsigned int, uint8_t, uint32_t, uint32_t);
 
 int get_icmp_len(uint8_t, uint8_t, sr_ip_hdr_t *);
 void create_icmp(uint8_t *, uint8_t, uint8_t, sr_ip_hdr_t *, unsigned int);
 
 void sr_handle_icmp(struct sr_instance* sr, uint8_t * packet,unsigned int len, char* interface);
-int sr_send_icmp_packet(struct sr_instance *sr, uint8_t * original_pkt, uint32_t tip, uint8_t icmp_type, uint8_t icmp_code);
+void sr_send_icmp_packet(struct sr_instance *, sr_ip_hdr_t *, uint8_t, uint8_t, sr_ethernet_hdr_t *, struct sr_if *);
 
 struct sr_if * sr_search_interface_by_ip(struct sr_instance *sr, uint32_t ip);
 struct sr_rt * sr_search_route_table(struct sr_instance * sr,uint32_t ip);
