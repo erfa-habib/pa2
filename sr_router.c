@@ -139,15 +139,15 @@ void sr_handlepacket(struct sr_instance* sr,
  *
  *---------------------------------------------------------------------*/
 
-void set_eth_header(uint8_t *packet, sr_ethernet_hdr_t *ether_hdr) {
+void set_eth_header(uint8_t *packet, uint8_t *ether_shost, uint8_t *ether_dhost) {
 	/* Sets the fields in the ethernet header */
 	
 	/* Set up the Ethernet header */
 	sr_ethernet_hdr_t *ether_arp_reply = (sr_ethernet_hdr_t *)packet;
 	
 	/* note: uint8_t is not 1 bit so use the size */
-	memcpy(ether_arp_reply->ether_dhost, ether_hdr->ether_shost, (sizeof(uint8_t) * ETHER_ADDR_LEN)); /* dest ethernet address */
-	memcpy(ether_arp_reply->ether_shost, ether_hdr->ether_dhost, (sizeof(uint8_t) * ETHER_ADDR_LEN)); /* source ethernet address */
+	memcpy(ether_arp_reply->ether_dhost, ether_shost, (sizeof(uint8_t) * ETHER_ADDR_LEN)); /* dest ethernet address */
+	memcpy(ether_arp_reply->ether_shost, ether_dhost, (sizeof(uint8_t) * ETHER_ADDR_LEN)); /* source ethernet address */
 	ether_arp_reply->ether_type = htons(ethertype_arp); /* packet type */
 }
 
@@ -183,10 +183,10 @@ void set_eth_header(uint8_t *packet, sr_ethernet_hdr_t *ether_hdr) {
 				uint8_t *packet = malloc(sizeof(uint8_t) * len);
 				
 				/* Set up reply with proper information */
-				set_eth_header(packet, ether_hdr);
+				set_eth_header(packet, ether_hdr->ether_shost, ether_hdr->ether_dhost);
 				
 				/* Set up the ARP header */
-				set_arp_header(packet+sizeof(sr_ethernet_hdr_t), router_if, arp_hdr);
+				set_arp_header(packet+sizeof(sr_ethernet_hdr_t), arp_op_reply, router_if->addr, router_if->ip, arp_hdr->ar_sha, arp_hdr->ar_sip);
 								
 				/* Send packet and free the packet from memory */
 				sr_send_packet(sr, packet, len, router_if->name);
@@ -210,21 +210,21 @@ void set_eth_header(uint8_t *packet, sr_ethernet_hdr_t *ether_hdr) {
 	}
 }
 
-void set_arp_header(uint8_t *packet, struct sr_if *router_if, sr_arp_hdr_t *arp_hdr) {
+void set_arp_header(uint8_t *packet, unsigned short op, unsigned char *sha, uint32_t sip, unsigned char *tha, uint32_t tip) {
 	/* Sets the fields in the arp header for arp packets */
 	
-	sr_arp_hdr_t *arp_hdr_reply = (sr_arp_hdr_t *)packet;
+	sr_arp_hdr_t *arp_hdr = (sr_arp_hdr_t *)packet;
 	
-	arp_hdr_reply->ar_hrd = htons(arp_hrd_ethernet); /* hardware address */
-	arp_hdr_reply->ar_pro = htons(ethertype_arp); /* ethernet type */
-	arp_hdr_reply->ar_hln = ETHER_ADDR_LEN; /*len of hardware address */
+	arp_hdr->ar_hrd = htons(arp_hrd_ethernet); /* hardware address */
+	arp_hdr->ar_pro = htons(ethertype_arp); /* ethernet type */
+	arp_hdr->ar_hln = ETHER_ADDR_LEN; /*len of hardware address */
 	/* I'm not sure if this is the proper protocol address length?? */
-	arp_hdr_reply->ar_pln = 4; /* protocol address len */
-	arp_hdr_reply->ar_op =  htons(arp_op_reply); /* opcode */
-	memcpy (arp_hdr_reply->ar_sha, router_if->addr, ETHER_ADDR_LEN); /*sender hardware address */
-	arp_hdr_reply->ar_sip = router_if->ip; /* sender ip address */
-	memcpy (arp_hdr_reply->ar_tha, arp_hdr->ar_sha, ETHER_ADDR_LEN); /* target hardware address */
-	arp_hdr_reply->ar_tip = arp_hdr->ar_sip; /* target ip address	*/
+	arp_hdr->ar_pln = 4; /* protocol address len */
+	arp_hdr->ar_op =  htons(op); /* opcode */
+	memcpy (arp_hdr->ar_sha, sha, ETHER_ADDR_LEN); /*sender hardware address */
+	arp_hdr->ar_sip = sip; /* sender ip address */
+	memcpy (arp_hdr->ar_tha, tha, ETHER_ADDR_LEN); /* target hardware address */
+	arp_hdr->ar_tip = tip; /* target ip address	*/
 }
 
 /*---------------------------------------------------------------------
