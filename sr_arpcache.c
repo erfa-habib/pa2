@@ -13,23 +13,9 @@
 #include "sr_utils.h"
 
 void handle_arpreq(struct sr_instance *sr, struct sr_arpreq *request) {
-	/*
-	PSEUDO CODE
-		function handle_arpreq(req):
-		   if difftime(now, req->sent) > 1.0
-			   if req->times_sent >= 5:
-				   send icmp host unreachable to source addr of all pkts waiting
-					 on this request
-				   arpreq_destroy(req)
-			   else:
-				   send arp request
-				   req->sent = now
-				   req->times_sent++
-	*/
 	time_t t = time(NULL);
 	
 	if (difftime(t, request->sent) > 1.0) {
-		
 		/*
 		struct sr_packet *packet;
 		for (packet = request->packets; packet != NULL; packet = packet->next) {
@@ -60,13 +46,21 @@ void handle_arpreq(struct sr_instance *sr, struct sr_arpreq *request) {
 				/* If dest MAC is empty, set it to our own */
 				set_eth_header(buf, ether_hdr->ether_shost, ether_hdr->ether_dhost);
 				
+				/* Get interface */
+				struct sr_if *ether_if = sr_get_interface(sr, packet->iface);
+				
+				if (!ether_if) {
+					return;
+				}
+				
 				/* Set data for the IP Header */
+				set_ip_header(buf + sizeof(sr_ethernet_hdr_t), icmp_len, ip_protocol_icmp, ether_if->ip, ip_packet_hdr->ip_src);
 				
 				/* Set data for the ICMP error */
 				create_icmp(buf, ICMP_DEST_UNREACHABLE, ICMP_DEST_HOST_UNREACHABLE_CODE, ip_packet_hdr, icmp_len);
 				
 				/* Send the packet */
-				sr_send_packet(sr, buf, len, packet->iface);
+				sr_send_packet(sr, buf, len, ether_if->name);
 				free(buf);
 				
 			}

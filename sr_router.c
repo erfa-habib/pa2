@@ -22,6 +22,7 @@
 #include "sr_protocol.h"
 #include "sr_arpcache.h"
 #include "sr_utils.h"
+#include "sr_dumper.h"
 
 /*---------------------------------------------------------------------
  * Method: sr_init(void)
@@ -285,6 +286,24 @@ void sr_send_icmp_packet(struct sr_instance *sr,
     return -1; 
 } */
 
+ void sr_handle_icmp(struct sr_instance * sr,
+                uint8_t * packet,
+                unsigned int len,
+                char * interface)
+{
+    if(len < sizeof(sr_ip_hdr_t) + sizeof(sr_icmp_hdr_t)){
+        perror("Invalid icmp packet\n");
+        return;
+    }
+    sr_ip_hdr_t * ip_packet = (sr_ip_hdr_t *)packet;
+    sr_icmp_hdr_t * icmp_packet = (sr_icmp_hdr_t *)(packet + sizeof(sr_ip_hdr_t));
+     // response to echo request //
+    if(icmp_packet->icmp_type == icmp_echo_request){
+        sr_send_icmp_packet(sr, (uint8_t *)ip_packet, ip_packet->ip_src,icmp_echo_reply, 0);
+    }
+    return;
+}
+
  void sr_handleIP(struct sr_instance* sr, uint8_t *packet, sr_ethernet_hdr_t *ether_hdr, struct sr_if *ether_if) {
 	/* Handles IP packets */ 
 	
@@ -295,10 +314,7 @@ void sr_send_icmp_packet(struct sr_instance *sr,
     
 	/* TTL */
     if (ntohs(ip_packet_hdr->ip_ttl) <= 1){
-		/* 
         sr_send_icmp_packet(sr, (uint8_t *)ip_packet_hdr, ip_packet_hdr->ip_src, icmp_time_exceed, 0);
-        */
-		
 		return;
     }
 	
@@ -351,6 +367,7 @@ void sr_send_icmp_packet(struct sr_instance *sr,
 				set_eth_header(icmp, ether_hdr->ether_dhost, ether_hdr->ether_shost);
 				
 				/* Input all IP information here*/
+				set_ip_header(icmp + sizeof(sr_ethernet_hdr_t), icmp_len, ip_protocol_icmp, ip_packet_hdr->ip_src, ip_packet_hdr->ip_dst);
 				
 				
 				/* Set the ICMP header information and change the ICMP to reply,
@@ -374,6 +391,7 @@ void sr_send_icmp_packet(struct sr_instance *sr,
 				set_eth_header(icmp, ether_hdr->ether_dhost, ether_hdr->ether_shost);
 				
 				/* Set IP information */
+				set_ip_header(icmp + sizeof(sr_ethernet_hdr_t), icmp_len, ip_protocol_icmp, ip_packet_hdr->ip_src, ip_packet_hdr->ip_dst);
 				
 				
 				/* Set ICMP information */
@@ -406,9 +424,25 @@ void sr_send_icmp_packet(struct sr_instance *sr,
 		*/
 		return;
     }
-
 }
 
+void set_ip_header(uint8_t *packet, unsigned int len, uint8_t protocol, uint32_t src, uint32_t dst) {
+	/* Sets header info for IP*/
+	
+    sr_ip_hdr_t *ip_packet = (sr_ip_hdr_t *)packet;
+
+	ip_packet->ip_tos = 0;
+    ip_packet->ip_v = 4;
+    ip_packet->ip_hl = sizeof(sr_ip_hdr_t)/4;
+    ip_packet->ip_len = htons(sizeof(sr_ip_hdr_t) + len);
+    ip_packet->ip_id = 0;
+    ip_packet->ip_off = htons(IP_DF);
+    ip_packet->ip_ttl = 64;
+    ip_packet->ip_p = protocol;
+    ip_packet->ip_src = src;
+    ip_packet->ip_dst = dst;
+    ip_packet->ip_sum = htons(cksum(ip_packet, 20));
+}
 
 /*---------------------------------------------------------------------
  * 
@@ -495,6 +529,7 @@ void send_arp_request(struct sr_instance *sr, struct sr_arpreq *dest, struct sr_
 	free(packet);
 }
 
+/*
 int sr_check_arp_send(struct sr_instance *sr,
                 sr_ip_hdr_t * ip_packet,
                 unsigned int len,
@@ -520,7 +555,7 @@ int sr_check_arp_send(struct sr_instance *sr,
     if(entry){
         memcpy(frame->ether_dhost, entry->mac, ETHER_ADDR_LEN);
         free(entry);
-        /*print_hdrs((uint8_t *)frame, frame_length);  */
+        print_hdrs((uint8_t *)frame, frame_length); 
         return sr_send_packet(sr, (uint8_t *)frame, frame_length, interface);
     }
     else {
@@ -530,6 +565,7 @@ int sr_check_arp_send(struct sr_instance *sr,
         return 0;
     }
 }
+*/
 
 /*---------------------------------------------------------------------
  * 
