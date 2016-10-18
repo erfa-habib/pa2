@@ -188,20 +188,13 @@ void set_eth_header(uint8_t *packet, uint8_t *ether_shost, uint8_t *ether_dhost)
         sr_send_icmp_packet(sr, ip_packet_hdr, ICMP_TIME_EXCEEDED, ICMP_TIME_EXCEEDED_CODE, ether_hdr, ether_if);
 		return;
     }
-	
-	printf("Our calculated sum is (w/o *4) %d\n", cksum(ip_packet_hdr, ip_packet_hdr->ip_hl));
-	printf("Our calculated sum is (ntohs) %d\n", ntohs(cksum(ip_packet_hdr, ip_packet_hdr->ip_hl * 4)));
-	printf("Our calculated sum is %d\n", cksum(ip_packet_hdr, ip_packet_hdr->ip_hl*4));
-	printf("Our calculated sum is (htons) %d\n", htons(cksum(ip_packet_hdr, ip_packet_hdr->ip_hl*4)));
-	printf("Actual value: %d\n", ntohs(ip_packet_hdr->ip_sum));
-	printf("Actual value without conversion: %d\n", (ip_packet_hdr->ip_sum));
+
 	
     /* Checksum */
-    if(ntohs(ip_packet_hdr->ip_sum) != cksum(ip_packet_hdr, ip_packet_hdr->ip_hl*4))
-    {
-        printf("Invalid IP Packet\n");
-        return;
-    }
+	if (!validate_checksum((uint8_t *)ip_packet_hdr, ip_packet_hdr->ip_hl*4, ethertype_ip)) {
+		printf("INVALID IP\n");
+		return;
+	};
     
     /* Check destination */ 
     struct sr_if * local_interface = sr_search_interface_by_ip(sr, ip_packet_hdr->ip_dst);
@@ -256,6 +249,7 @@ void set_eth_header(uint8_t *packet, uint8_t *ether_shost, uint8_t *ether_dhost)
 			
 			/* Decrement, calculate new checksum, forward */
             ip_hdr_fwd->ip_ttl--;
+			ip_hdr_fwd->ip_sum = 0;
             ip_hdr_fwd->ip_sum = cksum(ip_hdr_fwd, ip_hdr_fwd->ip_hl*4);
 			
 			struct sr_if * local_interface = sr_get_interface(sr, entry->interface);	
@@ -306,6 +300,7 @@ void set_ip_header(uint8_t *packet, unsigned int len, uint8_t protocol, uint32_t
     ip_packet->ip_p = protocol;
     ip_packet->ip_src = src;
     ip_packet->ip_dst = dst;
+	ip_packet->ip_sum = 0;
     ip_packet->ip_sum = htons(cksum(ip_packet, 20));
 }
 
@@ -448,16 +443,8 @@ void create_icmp(uint8_t *packet, uint8_t type, uint8_t code, sr_ip_hdr_t *orig_
 	- Copies the old IP header into the ICMP data section
 	- Performs a checksum
 	*/
-		
-	/* Set the proper ICMP header and data */
-	
-	icmp_hdr_t *icmp_packet = (icmp_hdr_t *)(packet + 
-			sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t));
-			
-	/* Set the common parts of the ICMP packet */
-	icmp_packet->icmp_type = type;
-	icmp_packet->icmp_code = code;
-	
+
+	sr_icmp_t3_hdr_t *icmp_packet;
 	switch(type)
 	{
 		case ICMP_DEST_UNREACHABLE: ;
@@ -465,27 +452,33 @@ void create_icmp(uint8_t *packet, uint8_t type, uint8_t code, sr_ip_hdr_t *orig_
 			on the router interface.
 			Tell it to expect the original packet size*/
 			/* Convert from default type header to type 3 header */
-			sr_icmp_t3_hdr_t *icmp3_packet = (sr_icmp_t3_hdr_t *)(packet + 
+			icmp_packet = (sr_icmp_t3_hdr_t *)(packet + 
 					sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t));
 					
 			/* Set MTU */
-			icmp3_packet->next_mtu = orig_ip_hdr->ip_len;
+			icmp_packet->next_mtu = orig_ip_hdr->ip_len;
 			
-			/* Copy the first 8 bytes of the original datagram and the old IP header */
-			memcpy(icmp3_packet->data, (uint8_t *)orig_ip_hdr, 
-				min(ICMP_DATA_SIZE, orig_ip_hdr->ip_len));
-				
-			/* Checksum */
-			icmp3_packet->icmp_sum = cksum((uint8_t *)icmp3_packet, len);
-			break;
-		default:
 			/* Copy the first 8 bytes of the original datagram and the old IP header */
 			memcpy(icmp_packet->data, (uint8_t *)orig_ip_hdr, 
 				min(ICMP_DATA_SIZE, orig_ip_hdr->ip_len));
 				
-			/* Checksum */
-			icmp_packet->icmp_sum = cksum((uint8_t *)icmp_packet, len);
+			break;
+		default: ;
+			icmp_packet = (icmp_hdr_t *)(packet + 
+				sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t));
+			
+			/* Copy the first 8 bytes of the original datagram and the old IP header */
+			memcpy(icmp_packet->data, (uint8_t *)orig_ip_hdr, 
+				min(ICMP_DATA_SIZE, orig_ip_hdr->ip_len));
+				
 	}
+	
+	/* Set the common parts of the ICMP packet */
+	icmp_packet->icmp_type = type;
+	icmp_packet->icmp_code = code;
+	/* Checksum */
+	icmp_packet->icmp_sum = 0;
+	icmp_packet->icmp_sum = cksum((uint8_t *)icmp_packet, len);
 }
 
 void sr_send_icmp_packet(struct sr_instance *sr, sr_ip_hdr_t * ip_packet_hdr, uint8_t icmp_type, uint8_t icmp_code, sr_ethernet_hdr_t *ether_hdr, struct sr_if *ether_if) {
@@ -514,8 +507,8 @@ void sr_send_icmp_packet(struct sr_instance *sr, sr_ip_hdr_t * ip_packet_hdr, ui
 				icmp_len = get_icmp_len(icmp_type, icmp_code, ip_packet_hdr);
 				
 				/* Check the ICMP checksum as well */
-				if (ntohs(icmp_hdr->icmp_sum) != cksum(icmp_hdr, icmp_len)) {
-					printf ("ICMP has an invalid checksum\n");
+				if (!validate_checksum((uint8_t *)icmp_hdr, icmp_len, ip_protocol_icmp)) {
+					printf("INVALID ICMP\n");
 					return;
 				}
 
@@ -609,3 +602,33 @@ struct sr_rt * sr_search_route_table(struct sr_instance *sr,uint32_t ip)
     }
     return match;
 }
+
+
+/*---------------------------------------------------------------------
+ * 
+ * 					OTHER UTILITIES
+ *
+ *---------------------------------------------------------------------*/
+ 
+ int validate_checksum(uint8_t *buf, uint16_t protocol, unsigned int len) {
+	/* Validate checksum */
+	uint8_t *packet = malloc(len);
+	memcpy(packet, buf, len);
+	unsigned int result;
+	
+	switch(protocol){
+		case ethertype_ip: ;
+			sr_ip_hdr_t *ip_packet = (sr_ip_hdr_t *)packet;
+			ip_packet->ip_sum = 0;
+			result = (ntohs(ip_packet->ip_sum) != cksum(ip_packet, len)) ? 0:1;
+			break;
+		case ip_protocol_icmp: ;
+			icmp_hdr_t *icmp_packet = (icmp_hdr_t *)packet;
+			icmp_packet->icmp_sum = 0;
+			result = (ntohs(icmp_packet->icmp_sum) != cksum(icmp_packet, len)) ? 0:1;
+			break;
+	}
+	
+	free (packet);
+	return result;
+ }
