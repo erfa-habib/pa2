@@ -357,7 +357,7 @@ void sr_send_icmp_packet(struct sr_instance *sr, sr_ip_hdr_t * ip_packet_hdr, ui
 			else {
 				struct sr_arpreq * req = sr_arpcache_queuereq(&sr->cache,
 				ip_packet_hdr->ip_dst, buf, len, entry->interface);
-				sr_handle_arpreq(sr, req);
+				handle_arpreq(sr, req);
 				return;
 			}
 			
