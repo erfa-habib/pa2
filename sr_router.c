@@ -197,7 +197,7 @@ void set_eth_header(uint8_t *packet, uint8_t *ether_shost, uint8_t *ether_dhost)
 	};
     
     /* Check destination */ 
-    struct sr_if * local_interface = sr_search_interface_by_ip(sr, ip_packet_hdr->ip_dst);
+    struct sr_if * local_interface = sr_search_interface_by_ip(sr, (ip_packet_hdr->ip_dst));
 	
     if (local_interface != NULL)
     {
