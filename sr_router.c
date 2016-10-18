@@ -197,7 +197,7 @@ void set_eth_header(uint8_t *packet, uint8_t *ether_shost, uint8_t *ether_dhost)
 	};
     
     /* Check destination */ 
-    struct sr_if * local_interface = sr_search_interface_by_ip(sr, (ip_packet_hdr->ip_dst));
+    struct sr_if * local_interface = sr_search_interface_by_ip(sr, htons(ip_packet_hdr->ip_dst));
 	
     if (local_interface != NULL)
     {
@@ -341,7 +341,9 @@ void set_ip_header(uint8_t *packet, unsigned int len, uint8_t protocol, uint32_t
 				print_hdrs(packet, len);
 							
 				/* Send packet and free the packet from memory */
-				sr_send_packet(sr, packet, len, router_if->name);
+				if (sr_send_packet(sr, packet, len, router_if->name) == -1) {
+					printf ("\n\n\nSENDING FAILED\n\n\n");
+				}
 				free(packet);
 				
 			}
@@ -356,7 +358,32 @@ void set_ip_header(uint8_t *packet, unsigned int len, uint8_t protocol, uint32_t
 			struct sr_arpreq *cached;
 			cached = sr_arpcache_insert(&sr->cache, arp_hdr->ar_sha, arp_hdr->ar_sip);
 			
-			/* free it? */
+			/*
+			   # When servicing an arp reply that gives us an IP->MAC mapping
+			   req = arpcache_insert(ip, mac)
+
+			   if req:
+				   send all packets on the req->packets linked list
+				   arpreq_destroy(req)
+			*/
+			struct sr_packet *packet;
+			
+			if (cached) {
+				for (packet = cached->packets; packet != NULL; packet = packet->next) {
+					
+					uint8_t *buf = malloc(packet->len);
+					sr_ethernet_hdr_t *ether_hdr = (sr_ethernet_hdr_t *)buf;
+					
+					set_eth_header(buf, sr_ether_if->addr, arp_hdr->ar_sha);
+					
+					if (sr_send_packet(sr, buf, packet->len, sr_ether_if->name) == -1) {
+						printf ("\n\n\nSENDING FAILED AT ARP REPLY\n\n\n");
+					}
+					
+					free(buf);				
+				}			
+				sr_arpreq_destroy(&(sr->cache), cached);		
+			}
 		
 			break;
 		default:
@@ -572,15 +599,15 @@ struct sr_if * sr_search_interface_by_ip(struct sr_instance *sr, uint32_t ip)
 	/* Find the interface the IP address corresponds to*/
 	struct sr_if *interface;
 	
-	printf ("Search interface by IP\n");
-	printf ("\n\n WE ARE SEARCHING FOR:");
 	print_addr_ip_int(ip);
 	
 	for (interface = sr->if_list; interface != NULL; interface = interface->next) {
 		printf("\n\nName: %s\n", interface->name);
 		print_addr_ip_int(interface->ip);
 		print_addr_eth(interface->addr);
-		if (interface->ip == htons(ip)) {
+		if (interface->ip == (ip)) { 
+			printf ("Search interface by IP\n");
+			printf ("\n\n WE ARE SEARCHING FOR:");
 			break;
 		}
 	}
