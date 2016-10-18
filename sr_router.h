@@ -86,7 +86,7 @@ void send_arp_request(struct sr_instance *, struct sr_arpreq *, struct sr_if *);
 
 void set_eth_header(uint8_t *, uint8_t *, uint8_t *);
 
-void sr_handleIP(struct sr_instance*, uint8_t *, unsigned int, sr_ethernet_hdr_t *, struct sr_if *);
+void sr_handleIP(struct sr_instance*, struct sr_ip_hdr *, unsigned int, sr_ethernet_hdr_t *, struct sr_if *);
 void set_ip_header(uint8_t *, unsigned int, uint8_t, uint32_t, uint32_t);
 
 int get_icmp_len(uint8_t, uint8_t, sr_ip_hdr_t *);

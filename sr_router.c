@@ -137,9 +137,11 @@ void sr_handlepacket(struct sr_instance* sr,
 			return;
 		}
 		
-		print_hdrs(packet, len);
+		sr_ip_hdr_t *ip_packet_hdr = (sr_ip_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t));
+		
+		print_hdr_ip((uint8_t *)ip_packet_hdr);
   
-        sr_handleIP(sr, packet, len, ether_hdr, sr_ether_if);
+        sr_handleIP(sr, ip_packet_hdr, len, ether_hdr, sr_ether_if);
         break;
     
     default:
@@ -175,13 +177,10 @@ void set_eth_header(uint8_t *packet, uint8_t *ether_shost, uint8_t *ether_dhost)
  *
  *---------------------------------------------------------------------*/
 
- void sr_handleIP(struct sr_instance* sr, uint8_t *packet, unsigned int len, sr_ethernet_hdr_t *ether_hdr, struct sr_if *ether_if) {
+ void sr_handleIP(struct sr_instance* sr, sr_ip_hdr_t *ip_packet_hdr, unsigned int len, sr_ethernet_hdr_t *ether_hdr, struct sr_if *ether_if) {
 	/* Handles IP packets */ 
 	
     /* Checking validation: TTL, checksum*/
-	
-	/* Retrieve IP header */
-    sr_ip_hdr_t * ip_packet_hdr = (sr_ip_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t));
     
 	/* TTL */
     if (ntohs(ip_packet_hdr->ip_ttl) <= 1){
@@ -189,6 +188,7 @@ void set_eth_header(uint8_t *packet, uint8_t *ether_shost, uint8_t *ether_dhost)
 		return;
     }
 
+	printf("CHECKSUM FOR IP\n");
 	
     /* Checksum */
 	if (!validate_checksum((uint8_t *)ip_packet_hdr, ip_packet_hdr->ip_hl*4, ethertype_ip)) {
@@ -199,8 +199,9 @@ void set_eth_header(uint8_t *packet, uint8_t *ether_shost, uint8_t *ether_dhost)
     /* Check destination */ 
     struct sr_if * local_interface = sr_search_interface_by_ip(sr, ip_packet_hdr->ip_dst);
 	
-    if (local_interface)
+    if (local_interface != NULL)
     {
+		printf("FOUND LOCAL INTERFACE FOR THE IP ADDRESS\n");
         /* Destination is local interface */
         switch(ip_packet_hdr->ip_p)
         {				
@@ -236,6 +237,8 @@ void set_eth_header(uint8_t *packet, uint8_t *ether_shost, uint8_t *ether_dhost)
     else
     {
         /* Destination is elsewhere: forward packet */
+		
+		printf("FORWARDING IP PACKET\n");
 		
         struct sr_rt *entry = sr_search_route_table(sr, ip_packet_hdr->ip_dst);
         if(entry)
@@ -328,15 +331,6 @@ void set_ip_header(uint8_t *packet, unsigned int len, uint8_t protocol, uint32_t
 				printf("Sending a reply back to sender IP address\n");
 				unsigned int len = sizeof(sr_ethernet_hdr_t) + sizeof(sr_arp_hdr_t);
 				uint8_t *packet = malloc(sizeof(uint8_t) * len);
-				
-				/* Set up reply with proper information */
-				printf("Ether_hdr->ether_shost MAC: %02x:%02x:%02x:%02x:%02x:%02x\n",
-				ether_hdr->ether_shost[0] & 0xff, ether_hdr->ether_shost[1] & 0xff, ether_hdr->ether_shost[2] & 0xff,
-						ether_hdr->ether_shost[3] & 0xff, ether_hdr->ether_shost[4] & 0xff, ether_hdr->ether_shost[5] & 0xff);
-						
-				printf("Ether_hdr->ether_dhost MAC: %02x:%02x:%02x:%02x:%02x:%02x\n",
-				ether_hdr->ether_dhost[0] & 0xff, ether_hdr->ether_dhost[1] & 0xff, ether_hdr->ether_dhost[2] & 0xff,
-						ether_hdr->ether_dhost[3] & 0xff, ether_hdr->ether_dhost[4] & 0xff, ether_hdr->ether_dhost[5] & 0xff);
 				
 				/* Set up Ethernet header */
 				set_eth_header(packet, router_if->addr, ether_hdr->ether_shost);
@@ -578,8 +572,15 @@ struct sr_if * sr_search_interface_by_ip(struct sr_instance *sr, uint32_t ip)
 	/* Find the interface the IP address corresponds to*/
 	struct sr_if *interface;
 	
+	printf ("Search interface by IP\n");
+	printf ("\n\n WE ARE SEARCHING FOR:");
+	print_addr_ip_int(ip);
+	
 	for (interface = sr->if_list; interface != NULL; interface = interface->next) {
-		if (interface->ip == ip) {
+		printf("\n\nName: %s\n", interface->name);
+		print_addr_ip_int(interface->ip);
+		print_addr_eth(interface->addr);
+		if (interface->ip == htons(ip)) {
 			break;
 		}
 	}
