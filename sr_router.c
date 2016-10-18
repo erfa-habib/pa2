@@ -185,13 +185,12 @@ void sr_send_icmp_packet(struct sr_instance *sr, sr_ip_hdr_t * ip_packet_hdr, ui
 		uint8_t *icmp;
         switch(icmp_type)
         {
-            case ICMP_ECHO: ;
-                
+            case ICMP_ECHO: ; 
 				/* Get the ICMP header we received */
 				icmp_hdr_t *icmp_hdr = (icmp_hdr_t *) ((uint8_t *)ip_packet_hdr + ip_packet_hdr->ip_hl*4);
 				
 				/* Get the ICMP length*/
-				icmp_len = get_icmp_len(ICMP_ECHO, ICMP_ECHO, ip_packet_hdr);
+				icmp_len = get_icmp_len(icmp_type, icmp_code, ip_packet_hdr);
 				
 				/* Check the ICMP checksum as well */
 				if (ntohs(icmp_hdr->icmp_sum) != cksum(icmp_hdr, icmp_len)) {
@@ -214,17 +213,16 @@ void sr_send_icmp_packet(struct sr_instance *sr, sr_ip_hdr_t * ip_packet_hdr, ui
 				
 				/* Set the ICMP header information and change the ICMP to reply,
 				echo also has no code but we'll set to 0 by default*/
-				create_icmp((uint8_t *)icmp_hdr_reply, ICMP_ECHO, ICMP_ECHO, ip_packet_hdr, icmp_len);
+				create_icmp((uint8_t *)icmp_hdr_reply, icmp_type, icmp_code, ip_packet_hdr, icmp_len);
 				
 				/* Send the ICMP reply back */
 				sr_send_packet(sr, icmp, icmp_reply_len, ether_if->name);
 				free(icmp);
 				
                 break;
-            case ICMP_DEST_UNREACHABLE: ;
-				/* Otherwise we send a Dest, port unreachable ICMP back in the
-				case that we get a TCP, UDP, or other protocol*/
-				icmp_len = get_icmp_len(ICMP_DEST_UNREACHABLE, ICMP_DEST_PORT_UNREACHABLE_CODE, ip_packet_hdr);
+            default: ;
+				/* Otherwise handle DEST UNREACHABLE and TIME EXCEEDED the same way*/
+				icmp_len = get_icmp_len(icmp_type, icmp_code, ip_packet_hdr);
 				unsigned int len = icmp_len + sizeof(sr_ethernet_hdr_t) + 
 										sizeof(sr_ip_hdr_t);					
 				icmp = malloc(len);
@@ -237,14 +235,11 @@ void sr_send_icmp_packet(struct sr_instance *sr, sr_ip_hdr_t * ip_packet_hdr, ui
 				
 				
 				/* Set ICMP information */
-				create_icmp(icmp, ICMP_DEST_UNREACHABLE, ICMP_DEST_PORT_UNREACHABLE_CODE, ip_packet_hdr, icmp_len);
+				create_icmp(icmp, icmp_type, icmp_code, ip_packet_hdr, icmp_len);
 				
 				/* Send the ICMP reply back */
 				sr_send_packet(sr, icmp, len, ether_if->name);
 				free(icmp);
-				
-                break;
-            case ICMP_TIME_EXCEEDED: ;
 				
                 break;
         }
@@ -253,10 +248,6 @@ void sr_send_icmp_packet(struct sr_instance *sr, sr_ip_hdr_t * ip_packet_hdr, ui
         if (!entry) {
            return;
         }
-		
-		/*
-        return sr_check_arp_send(sr, ip_packet_hdr, packet_length, entry, entry->interface);
-		*/
     }
     return;
 }
