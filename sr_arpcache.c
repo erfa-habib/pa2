@@ -87,7 +87,7 @@ void handle_arpreq(struct sr_instance *sr, struct sr_arpreq *request) {
 
 void sr_arpcache_sweepreqs(struct sr_instance *sr) { 
     struct sr_arpreq *request = sr->cache.requests;
-	struct sr_arpreq *next = request->next;
+	struct sr_arpreq *next = request;
 	
 	/*
 	Since handle_arpreq as defined in the comments above could 	destroy your
@@ -119,7 +119,7 @@ void sr_arpcache_sweepreqs(struct sr_instance *sr) {
 	for (; request != NULL; request = next){
 		next = request->next;
 		handle_arpreq(sr, request);
-	}	
+	}
 }
 
 /* You should not need to touch the rest of this code. */
@@ -338,8 +338,6 @@ void *sr_arpcache_timeout(void *sr_ptr) {
                 cache->entries[i].valid = 0;
             }
         }
-		
-		printf("SWEEPREQS\n");
         
         sr_arpcache_sweepreqs(sr);
 
