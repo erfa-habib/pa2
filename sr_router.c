@@ -158,7 +158,7 @@ void sr_handlepacket(struct sr_instance* sr,
  *
  *---------------------------------------------------------------------*/
 
-void set_eth_header(uint8_t *packet, uint8_t *ether_shost, uint8_t *ether_dhost) {
+void set_eth_header(uint8_t *packet, uint8_t *ether_shost, uint8_t *ether_dhost, uint16_t type) {
 	/* Sets the fields in the ethernet header */
 	
 	/* Set up the Ethernet header */
@@ -167,7 +167,7 @@ void set_eth_header(uint8_t *packet, uint8_t *ether_shost, uint8_t *ether_dhost)
 	/* note: uint8_t is not 1 bit so use the size */
 	memcpy(ether_arp_reply->ether_shost, ether_shost, (sizeof(uint8_t) * ETHER_ADDR_LEN)); /* dest ethernet address */
 	memcpy(ether_arp_reply->ether_dhost, ether_dhost, (sizeof(uint8_t) * ETHER_ADDR_LEN)); /* source ethernet address */
-	ether_arp_reply->ether_type = htons(ethertype_arp); /* packet type */
+	ether_arp_reply->ether_type = htons(type); /* packet type */
 }
 
 
@@ -197,7 +197,7 @@ void set_eth_header(uint8_t *packet, uint8_t *ether_shost, uint8_t *ether_dhost)
 	};
     
     /* Check destination */ 
-    struct sr_if * local_interface = sr_search_interface_by_ip(sr, htons(ip_packet_hdr->ip_dst));
+    struct sr_if * local_interface = sr_search_interface_by_ip(sr, (ip_packet_hdr->ip_dst)); /*htons*/
 	
     if (local_interface != NULL)
     {
@@ -266,7 +266,7 @@ void set_eth_header(uint8_t *packet, uint8_t *ether_shost, uint8_t *ether_dhost)
 			struct sr_arpentry * arpentry = sr_arpcache_lookup(&sr->cache, ip_to_arp);
 			
 			if(arpentry){
-				set_eth_header(buf, arpentry->mac, local_interface->addr);
+				set_eth_header(buf, arpentry->mac, local_interface->addr, ethertype_arp);
 				free(arpentry);
 				
 				sr_send_packet(sr, buf, len, entry->interface);
@@ -333,7 +333,7 @@ void set_ip_header(uint8_t *packet, unsigned int len, uint8_t protocol, uint32_t
 				uint8_t *packet = malloc(sizeof(uint8_t) * len);
 				
 				/* Set up Ethernet header */
-				set_eth_header(packet, router_if->addr, ether_hdr->ether_shost);
+				set_eth_header(packet, router_if->addr, ether_hdr->ether_shost, ethertype_arp);
 				
 				/* Set up the ARP header */
 				set_arp_header(packet+sizeof(sr_ethernet_hdr_t), arp_op_reply, router_if->addr, router_if->ip, arp_hdr->ar_sha, arp_hdr->ar_sip);
@@ -371,12 +371,16 @@ void set_ip_header(uint8_t *packet, unsigned int len, uint8_t protocol, uint32_t
 			if (cached) {
 				for (packet = cached->packets; packet != NULL; packet = packet->next) {
 					
-					uint8_t *buf = malloc(packet->len);
+					printf("\n\nSENDING FOR THE IP: \n");
+					print_addr_ip_int(arp_hdr->ar_sip);
+					
+					uint8_t *buf = malloc(sizeof(uint8_t) * packet->len);
 					sr_ethernet_hdr_t *ether_hdr = (sr_ethernet_hdr_t *)buf;
 					
-					set_eth_header(buf, sr_ether_if->addr, arp_hdr->ar_sha);
+					set_eth_header(buf, sr_ether_if->addr, arp_hdr->ar_sha, ethertype_ip);
+					print_hdr_eth(buf);
 					
-					if (sr_send_packet(sr, buf, packet->len, sr_ether_if->name) == -1) {
+					if (sr_send_packet(sr, buf, sizeof(uint8_t) * packet->len, sr_ether_if->name) == -1) {
 						printf ("\n\n\nSENDING FAILED AT ARP REPLY\n\n\n");
 					}
 					
@@ -419,7 +423,7 @@ void send_arp_request(struct sr_instance *sr, struct sr_arpreq *dest, struct sr_
 	set_arp_header(packet + sizeof(sr_ethernet_hdr_t), arp_op_request, src->addr, src->ip, (unsigned char *)BROADCAST, dest->ip);
 
 	/* Set the Ethernet header */
-	set_eth_header(packet, src->addr, (unsigned char *)BROADCAST);
+	set_eth_header(packet, src->addr, (unsigned char *)BROADCAST, ethertype_arp);
 	
 	/* Send the packet */
 	sr_send_packet(sr, packet, len, src->name);
@@ -540,7 +544,7 @@ void sr_send_icmp_packet(struct sr_instance *sr, sr_ip_hdr_t * ip_packet_hdr, ui
 				icmp_hdr_t *icmp_hdr_reply = (icmp_hdr_t *)(icmp + sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t)); /*create ICMP reply*/
 				
 				/* Set the Ethernet header information */
-				set_eth_header(icmp, ether_hdr->ether_dhost, ether_hdr->ether_shost);
+				set_eth_header(icmp, ether_hdr->ether_dhost, ether_hdr->ether_shost, ethertype_ip);
 				
 				/* Input all IP information here*/
 				set_ip_header(icmp + sizeof(sr_ethernet_hdr_t), icmp_len, ip_protocol_icmp, ip_packet_hdr->ip_src, ip_packet_hdr->ip_dst);
@@ -563,7 +567,7 @@ void sr_send_icmp_packet(struct sr_instance *sr, sr_ip_hdr_t * ip_packet_hdr, ui
 				icmp = malloc(len);
 				
 				/* Set the Ethernet header information */
-				set_eth_header(icmp, ether_hdr->ether_dhost, ether_hdr->ether_shost);
+				set_eth_header(icmp, ether_hdr->ether_dhost, ether_hdr->ether_shost, ethertype_ip);
 				
 				/* Set IP information */
 				set_ip_header(icmp + sizeof(sr_ethernet_hdr_t), icmp_len, ip_protocol_icmp, ip_packet_hdr->ip_src, ip_packet_hdr->ip_dst);
@@ -599,15 +603,11 @@ struct sr_if * sr_search_interface_by_ip(struct sr_instance *sr, uint32_t ip)
 	/* Find the interface the IP address corresponds to*/
 	struct sr_if *interface;
 	
+	printf ("SEARCH INTERFACE BY IP\n");
 	print_addr_ip_int(ip);
 	
 	for (interface = sr->if_list; interface != NULL; interface = interface->next) {
-		printf("\n\nName: %s\n", interface->name);
-		print_addr_ip_int(interface->ip);
-		print_addr_eth(interface->addr);
 		if (interface->ip == (ip)) { 
-			printf ("Search interface by IP\n");
-			printf ("\n\n WE ARE SEARCHING FOR:");
 			break;
 		}
 	}

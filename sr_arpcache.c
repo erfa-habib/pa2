@@ -44,7 +44,7 @@ void handle_arpreq(struct sr_instance *sr, struct sr_arpreq *request) {
 				
 				/* Set data for the Ethernet Header */
 				/* If dest MAC is empty, set it to our own */
-				set_eth_header(buf, ether_hdr->ether_shost, ether_hdr->ether_dhost);
+				set_eth_header(buf, ether_hdr->ether_shost, ether_hdr->ether_dhost, ethertype_arp);
 				
 				/* Get interface */
 				struct sr_if *ether_if = sr_get_interface(sr, packet->iface);
