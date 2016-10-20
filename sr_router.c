@@ -279,6 +279,7 @@ void set_eth_header(uint8_t *packet, uint8_t *ether_shost, uint8_t *ether_dhost,
 
 	/* TTL */
 
+	/*
     if (ip_packet_hdr->ip_ttl == 1){
 
         sr_send_icmp_packet(sr, ip_packet_hdr, ICMP_TIME_EXCEEDED, ICMP_TIME_EXCEEDED_CODE);
@@ -286,129 +287,71 @@ void set_eth_header(uint8_t *packet, uint8_t *ether_shost, uint8_t *ether_dhost,
 		return;
 
     }
-
+	*/
 
 
 	printf("CHECKSUM FOR IP\n");
 
-	
-
     /* Checksum */
-
 	if (!validate_checksum((uint8_t *)ip_packet_hdr, ip_packet_hdr->ip_hl*4, ethertype_ip)) {
-
 		printf("INVALID IP\n");
-
 		return;
-
 	};
 
-    
-
     /* Check destination */ 
-
     struct sr_if * local_interface = sr_search_interface_by_ip(sr, (ip_packet_hdr->ip_dst)); /*htons*/
 
-	
-
     if (local_interface)
-
     {
-
 		printf("FOUND LOCAL INTERFACE FOR THE IP ADDRESS\n");
-
         /* Destination is local interface */
-
         switch(ip_packet_hdr->ip_p)
-
         {				
-
 			unsigned int icmp_len;
-
 			uint8_t *icmp;
-
 			
-
             case ip_protocol_icmp:
-
 				/* ICMP is an echo request */
-
 				printf ("ICMP ECHO REQUEST RECEIVED\n");
-
-				
-
 				/* Check length */
-
-				if (len-sizeof(sr_ethernet_hdr_t) < (sizeof(sr_ip_hdr_t) + sizeof(sr_icmp_hdr_t))){
-
-					perror("Invalid ICMP packet\n");
-
-					return;
-
-				}
-
 				
+				if (len-sizeof(sr_ethernet_hdr_t) < (sizeof(sr_ip_hdr_t) + sizeof(sr_icmp_hdr_t))){
+					perror("Invalid ICMP packet\n");
+					return;
+				}
 
 				/* If echo */
-
 				icmp_hdr_t *icmp_packet = (icmp_hdr_t *) ((uint8_t *)ip_packet_hdr + ip_packet_hdr->ip_hl*4);
 
-				
-
 				if(icmp_packet->icmp_type == ICMP_ECHO){
-
 					sr_send_icmp_packet(sr, ip_packet_hdr, ICMP_ECHO, ICMP_ECHO);
-
+				} else {
+					sr_send_icmp_packet(sr, ip_packet_hdr, ICMP_DEST_UNREACHABLE, ICMP_DEST_PORT_UNREACHABLE_CODE);
 				}
-
-				
 
                 break;
 
             default: ;
 
-			
-
 				/* Otherwise send dest unreachable */
-
 				sr_send_icmp_packet(sr, ip_packet_hdr, ICMP_DEST_UNREACHABLE, ICMP_DEST_PORT_UNREACHABLE_CODE);
-
-                
-
                 break;
-
         }
-
     }
-
     else
-
     {
-
-        /* Destination is elsewhere: forward packet */
-
-		
-
+		/* Destination is elsewhere: forward packet */
 		printf("FORWARDING IP PACKET\n");
-
 		
-
-        struct sr_rt *entry = sr_search_route_table(sr, ip_packet_hdr->ip_dst);
-
-		if (entry)
-
+        struct sr_rt *rt_node = sr_search_route_table(sr, ip_packet_hdr->ip_dst);
+		if (rt_node)
 		{
-
 			/* Create new header */
-
 			int len = sizeof(sr_ethernet_hdr_t) + ntohs(ip_packet_hdr->ip_len);
-
 			uint8_t *buf = malloc(len);
 
-
-
 			sr_ip_hdr_t *ip_hdr_fwd = (sr_ip_hdr_t *)(buf + sizeof(sr_ethernet_hdr_t));
-
+			sr_ethernet_hdr_t *ether_hdr_fwd = (sr_ethernet_hdr_t *)buf;
 			memcpy(ip_hdr_fwd, ip_packet_hdr, ntohs(ip_packet_hdr->ip_len));
 
 
@@ -416,24 +359,48 @@ void set_eth_header(uint8_t *packet, uint8_t *ether_shost, uint8_t *ether_dhost,
 			/* Decrement, calculate new checksum, forward */
 
 			ip_hdr_fwd->ip_ttl--;
+			
+			/* Check if TTL is 0 after decrementing, in which case we drop
+			the packet instead and send an icmp */
+			
+			if (ip_hdr_fwd->ip_ttl <= 0) {
+				sr_send_icmp_packet(sr, ip_hdr_fwd, ICMP_TIME_EXCEEDED, ICMP_TIME_EXCEEDED_CODE);
+				return;
+			}
 
 			ip_hdr_fwd->ip_sum = 0;
-
 			ip_hdr_fwd->ip_sum = cksum(ip_hdr_fwd, ip_hdr_fwd->ip_hl * 4);
 
-			sr_check_arp_send(sr, ip_hdr_fwd, len - sizeof(sr_ethernet_hdr_t),
-				entry, entry->interface);
+			struct sr_arpentry *entry = sr_arpcache_lookup(&sr->cache, rt_node->gw.s_addr);
+			struct sr_if *outgoing = sr_get_interface(sr, rt_node->interface);
+		
+			printf("Got our arp entry!\n");
+			if (entry) {
+				printf("Foward packet to the next hop!\n");
+				
+				set_eth_header((uint8_t *)ether_hdr_fwd, outgoing->addr, entry->mac, ethertype_ip);
+				
+				printf("Our completed packet is:");
+				print_hdrs(buf, len);
+				
+				sr_send_packet(sr, buf, len, outgoing->name);
+				free(buf);
+				return;
+			} else {
+				printf("SENDING ARP REQUEST TO FIND IP->MAC MAPPING.\n");
+				set_eth_header((uint8_t *)ether_hdr_fwd, outgoing->addr, (uint8_t *)EMPTY, ethertype_ip);
+				printf("Our packet with dest empty is is:");
+				print_hdrs(buf, len);
+				
+				struct sr_arpreq * req = sr_arpcache_queuereq(&sr->cache, rt_node->gw.s_addr, buf, len, rt_node->interface);
+				handle_arpreq(sr, req);
+			}
 		}
         else
-
         {
-
 			sr_send_icmp_packet(sr, ip_packet_hdr, ICMP_DEST_UNREACHABLE, ICMP_DEST_PORT_UNREACHABLE_CODE);
 
         }
-
-		return;
-
     }
 
 }
@@ -528,9 +495,11 @@ void set_ip_header(uint8_t *packet, unsigned int len, uint8_t protocol, uint32_t
 			/* Send a reply back to the sender IP address */
 			if (router_if) {
 				
+				/*
 				if (!sr_arpcache_lookup(&sr->cache, arp_hdr->ar_sip)) {
 					sr_arpcache_insert(&sr->cache, arp_hdr->ar_sha, arp_hdr->ar_sip); 
 				}
+				*/ 
 				
 				printf("Sending a reply back to sender IP address\n");
 				unsigned int len = sizeof(sr_ethernet_hdr_t) + sizeof(sr_arp_hdr_t);
