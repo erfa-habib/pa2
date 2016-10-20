@@ -29,7 +29,6 @@ void send_arp_requests(struct sr_instance *sr, struct sr_arpreq *request) {
 		struct sr_if *interface = sr_get_interface(sr, packet->iface);
 		send_arp_request(sr, request, interface);
 	}
-	
 }
 
 void handle_arpreq(struct sr_instance *sr, struct sr_arpreq *request) {
@@ -45,7 +44,9 @@ void handle_arpreq(struct sr_instance *sr, struct sr_arpreq *request) {
 			/* ARP reply if the target IP address is one of your router’s IP addresses. In the case of an ARP reply, you should only cache the entry if the target IP address is one of your router’s IP addresses.
 			Note that ARP requests are sent to the broadcast MAC address (ff-ff-ff-ff-ff-ff). ARP replies are sent directly to the requester’s MAC address.*/
 			
-			send_arp_requests(sr, request);
+			struct sr_if *interface = sr_get_interface(sr, (request->packets)->iface);
+			
+			send_arp_request(sr, request, interface);
 			request->times_sent++;
 			time ( &request->sent );
 		}
