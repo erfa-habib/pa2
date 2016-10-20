@@ -279,15 +279,13 @@ void set_eth_header(uint8_t *packet, uint8_t *ether_shost, uint8_t *ether_dhost,
 
 	/* TTL */
 
-	/*
-    if (ip_packet_hdr->ip_ttl == 1){
+    if (ip_packet_hdr->ip_ttl <= 1){
 
         sr_send_icmp_packet(sr, ip_packet_hdr, ICMP_TIME_EXCEEDED, ICMP_TIME_EXCEEDED_CODE);
 
 		return;
 
     }
-	*/
 
 
 	printf("CHECKSUM FOR IP\n");
@@ -319,6 +317,7 @@ void set_eth_header(uint8_t *packet, uint8_t *ether_shost, uint8_t *ether_dhost,
 					perror("Invalid ICMP packet\n");
 					return;
 				}
+				
 
 				/* If echo */
 				icmp_hdr_t *icmp_packet = (icmp_hdr_t *) ((uint8_t *)ip_packet_hdr + ip_packet_hdr->ip_hl*4);
@@ -402,7 +401,7 @@ void set_eth_header(uint8_t *packet, uint8_t *ether_shost, uint8_t *ether_dhost,
 
         }
     }
-
+	return;
 }
 
 
@@ -553,8 +552,6 @@ void set_ip_header(uint8_t *packet, unsigned int len, uint8_t protocol, uint32_t
 
 					sr_ethernet_hdr_t *ether_hdr = (sr_ethernet_hdr_t *)buf;
 
-					
-					
 					set_eth_header(buf, sr_ether_if->addr, arp_hdr->ar_sha, ethertype_ip);
 					set_eth_header(buf, arp_hdr->ar_sip, arp_hdr->ar_sha, ethertype_ip); 
 					print_hdr_eth(buf);
@@ -589,7 +586,7 @@ void set_ip_header(uint8_t *packet, unsigned int len, uint8_t protocol, uint32_t
 			printf("Incorrect ARP opcode. Only ARP requests and replies are handled.\n");
 
 	}
-
+	return;
 }
 
 
