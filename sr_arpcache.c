@@ -46,9 +46,13 @@ void handle_arpreq(struct sr_instance *sr, struct sr_arpreq *request) {
 			
 			struct sr_if *interface = sr_get_interface(sr, (request->packets)->iface);
 			
+			pthread_mutex_lock(&((sr->cache).lock));
+			
 			send_arp_request(sr, request, interface);
 			request->times_sent++;
 			time ( &request->sent );
+			
+			pthread_mutex_unlock(&((sr->cache).lock));
 		}
 	}
 }
