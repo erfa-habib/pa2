@@ -150,5 +150,7 @@ void *sr_arpcache_timeout(void *cache_ptr);
 
 void handle_arpreq(struct sr_instance *, struct sr_arpreq *);
 void sr_arpcache_sweepreqs(struct sr_instance *); 
+void send_arp_requests(struct sr_instance *, struct sr_arpreq *);
+void send_icmp_to_packets(struct sr_instance *, struct sr_arpreq *);
 
 #endif

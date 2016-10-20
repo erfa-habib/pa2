@@ -41,6 +41,7 @@
 #define ICMP_TIME_EXCEEDED_CODE 0
 
 #define BROADCAST "\xff\xff\xff\xff\xff\xff"
+#define EMPTY "\x00\x00\x00\x00\x00\x00"
 
 /* forward declare */
 struct sr_if;
@@ -93,7 +94,7 @@ int get_icmp_len(uint8_t, uint8_t, sr_ip_hdr_t *);
 void create_icmp(uint8_t *, uint8_t, uint8_t, sr_ip_hdr_t *, unsigned int);
 
 void sr_handle_icmp(struct sr_instance* sr, uint8_t * packet,unsigned int len, char* interface);
-void sr_send_icmp_packet(struct sr_instance *, sr_ip_hdr_t *, uint8_t, uint8_t, sr_ethernet_hdr_t *, struct sr_if *);
+void sr_send_icmp_packet(struct sr_instance *, sr_ip_hdr_t *, uint8_t, uint8_t);
 
 struct sr_if * sr_search_interface_by_ip(struct sr_instance *sr, uint32_t ip);
 struct sr_rt * sr_search_route_table(struct sr_instance * sr,uint32_t ip);
@@ -106,6 +107,6 @@ void sr_set_ether_ip(struct sr_instance* , uint32_t );
 void sr_set_ether_addr(struct sr_instance* , const unsigned char* );
 void sr_print_if_list(struct sr_instance* );
 
- int validate_checksum(uint8_t *, uint16_t, unsigned int);
+ int validate_checksum(uint8_t *, unsigned int, uint16_t);
 
 #endif /* SR_ROUTER_H */

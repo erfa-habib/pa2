@@ -12,68 +12,41 @@
 #include "sr_protocol.h"
 #include "sr_utils.h"
 
-void handle_arpreq(struct sr_instance *sr, struct sr_arpreq *request) {
-	time_t t = time(NULL);
+void send_icmp_to_packets(struct sr_instance *sr, struct sr_arpreq *request) {
+	struct sr_packet *packet;
+
+	for (packet = request->packets; packet != NULL; packet = packet->next) {
+		sr_send_icmp_packet(sr, (sr_ip_hdr_t *)(packet->buf + sizeof(sr_ethernet_hdr_t)),
+		ICMP_DEST_UNREACHABLE, ICMP_DEST_HOST_UNREACHABLE_CODE);
+		
+	}
+}
+
+void send_arp_requests(struct sr_instance *sr, struct sr_arpreq *request) {
+	struct sr_packet *packet;
 	
-	if (difftime(t, request->sent) > 1.0) {
-		/*
-		struct sr_packet *packet;
-		for (packet = request->packets; packet != NULL; packet = packet->next) {
-			print_hdrs(packet->buf, packet->len);
-		} */
-		if (request->times_sent == 5) {
-			struct sr_packet *packet;
-				
-			printf("Send icmp error to this packet\n");
-			
-			for (packet = request->packets; packet != NULL; packet = packet->next) {
-				print_hdrs(packet->buf, packet->len);
-				
-				/* Get the corresponding Ethernet header */
-				sr_ethernet_hdr_t *ether_hdr = (sr_ethernet_hdr_t *) packet->buf;
-				
-				/* Get the corresponding IP header */
-			
-				sr_ip_hdr_t * ip_packet_hdr = (sr_ip_hdr_t *)(packet->buf + sizeof(sr_ethernet_hdr_t));
-			
-				/* get length for ICMP */
-				unsigned int icmp_len = get_icmp_len(ICMP_DEST_UNREACHABLE, ICMP_DEST_HOST_UNREACHABLE_CODE, ip_packet_hdr);
-				unsigned int len = icmp_len + sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t);
-				
-				uint8_t *buf = malloc(len);
-				
-				/* Set data for the Ethernet Header */
-				/* If dest MAC is empty, set it to our own */
-				set_eth_header(buf, ether_hdr->ether_shost, ether_hdr->ether_dhost, ethertype_arp);
-				
-				/* Get interface */
-				struct sr_if *ether_if = sr_get_interface(sr, packet->iface);
-				
-				if (!ether_if) {
-					return;
-				}
-				
-				/* Set data for the IP Header */
-				set_ip_header(buf + sizeof(sr_ethernet_hdr_t), icmp_len, ip_protocol_icmp, ether_if->ip, ip_packet_hdr->ip_src);
-				
-				/* Set data for the ICMP error */
-				create_icmp(buf, ICMP_DEST_UNREACHABLE, ICMP_DEST_HOST_UNREACHABLE_CODE, ip_packet_hdr, icmp_len);
-				
-				/* Send the packet */
-				sr_send_packet(sr, buf, len, ether_if->name);
-				free(buf);
-				
-			}
-			
+	for (packet = request->packets; packet != NULL; packet = packet->next) {
+		struct sr_if *interface = sr_get_interface(sr, packet->iface);
+		send_arp_request(sr, request, interface);
+	}
+	
+}
+
+void handle_arpreq(struct sr_instance *sr, struct sr_arpreq *request) {
+	time_t now = time(NULL);
+	
+	if (difftime(now, request->sent) > 1.0) {
+		if (request->times_sent >= 5) {
+			send_icmp_to_packets(sr, request);
 			/* Delete the request from entry table */
 			sr_arpreq_destroy(&sr->cache, request);
+			
 		} else {
 			/* ARP reply if the target IP address is one of your router’s IP addresses. In the case of an ARP reply, you should only cache the entry if the target IP address is one of your router’s IP addresses.
 			Note that ARP requests are sent to the broadcast MAC address (ff-ff-ff-ff-ff-ff). ARP replies are sent directly to the requester’s MAC address.*/
 			
-			send_arp_request(sr, request, sr_get_interface(sr, (request->packets)->iface));
-			
-			request->times_sent += 1;
+			send_arp_requests(sr, request);
+			request->times_sent++;
 			time ( &request->sent );
 		}
 	}
@@ -86,37 +59,20 @@ void handle_arpreq(struct sr_instance *sr, struct sr_arpreq *request) {
 */
 
 void sr_arpcache_sweepreqs(struct sr_instance *sr) { 
+	/*
     struct sr_arpreq *request = sr->cache.requests;
 	struct sr_arpreq *next = request;
 	
-	/*
-	Since handle_arpreq as defined in the comments above could 	destroy your
-	current request, make sure to save the next pointer before calling
-	handle_arpreq when traversing through the ARP requests linked list.
+	for (; request != NULL; request = next){
+		next = request->next;
+		handle_arpreq(sr, request);
+	}
 	*/
 	
-	/*
-	if (cache == NULL) {
-		printf("No cache\n");
-	} else {
-		printf("Got a cache\n");
-	}
+	struct sr_arpreq *request;
+	struct sr_arpreq *next;
 	
-	if (cache->requests == NULL) {
-		printf("No requests\n");
-	} else {
-		printf("Got a request\n");
-	}
-	
-	struct sr_arpentry *entry;
-	int i;
-	for (i = 0; i < SR_ARPCACHE_SZ; i++){
-		printf("Arpcache stuff\n");
-		entry = (sr->cache).entries + i;
-		printf("MAC %s, IP %lu, time %lu, valid %d\n", entry->mac, (unsigned long)entry->ip, (unsigned long)entry->added, entry->valid);
-	}*/
-	
-	for (; request != NULL; request = next){
+	for (request = sr->cache.requests; request != NULL; request = next){
 		next = request->next;
 		handle_arpreq(sr, request);
 	}
