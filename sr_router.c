@@ -368,7 +368,7 @@ void set_eth_header(uint8_t *packet, uint8_t *ether_shost, uint8_t *ether_dhost,
 
 	/* TTL */
 
-    if (ntohs(ip_packet_hdr->ip_ttl) <= 1){
+    if (ip_packet_hdr->ip_ttl == 1){
 
         sr_send_icmp_packet(sr, ip_packet_hdr, ICMP_TIME_EXCEEDED, ICMP_TIME_EXCEEDED_CODE, ether_hdr, ether_if);
 
