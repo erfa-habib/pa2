@@ -51,6 +51,11 @@ void *sr_nat_timeout(void *nat_ptr) {  /* Periodic Timout handling */
     time_t curtime = time(NULL);
 
     /* handle periodic tasks here */
+    
+    
+    /* TODO:
+      if idle for timeout, remove from table 
+      */
 
     pthread_mutex_unlock(&(nat->lock));
   }
