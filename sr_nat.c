@@ -79,7 +79,16 @@ struct sr_nat_mapping *sr_nat_lookup_internal(struct sr_nat *nat,
   pthread_mutex_lock(&(nat->lock));
 
   /* handle lookup here, malloc and assign to copy. */
-  struct sr_nat_mapping *copy = NULL;
+  sr_nat_mapping * associated_mapping = nat->mappings; 
+  while (associated_mapping != NULL) {
+      if (associated_mapping->ip_int == ip_int & associated_mapping->aux_int & associated_mapping->type == type) {
+          break;
+      }
+    associated_mapping = mappings->next;
+  }
+  
+  struct sr_nat_mapping *copy = malloc(sizeof(sr_nat_mapping));
+  /* do memcpy here? */
 
   pthread_mutex_unlock(&(nat->lock));
   return copy;
@@ -100,6 +109,7 @@ struct sr_nat_mapping *sr_nat_insert_mapping(struct sr_nat *nat,
   mapping->type = type; // set type 
   mapping->next = nat->mappings;
   
+  /* What else do we need to set in the mapping? */
   /* look at arp_cache for this part */
 
   pthread_mutex_unlock(&(nat->lock));
