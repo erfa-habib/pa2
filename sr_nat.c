@@ -84,7 +84,7 @@ struct sr_nat_mapping *sr_nat_lookup_internal(struct sr_nat *nat,
       if (associated_mapping->ip_int == ip_int & associated_mapping->aux_int & associated_mapping->type == type) {
           break;
       }
-    associated_mapping = mappings->next;
+    associated_mapping = associated_mapping->next;
   }
   
   struct sr_nat_mapping *copy = malloc(sizeof(sr_nat_mapping));
