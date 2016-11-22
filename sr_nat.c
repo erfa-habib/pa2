@@ -110,6 +110,7 @@ struct sr_nat_mapping *sr_nat_insert_mapping(struct sr_nat *nat,
   mapping->next = nat->mappings;
   
   /* What else do we need to set in the mapping? */
+  /*perhaps need to set time, use time(null) */
   /* look at arp_cache for this part */
 
   pthread_mutex_unlock(&(nat->lock));
