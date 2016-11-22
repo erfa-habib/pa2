@@ -107,8 +107,9 @@ struct sr_nat_mapping *sr_nat_insert_mapping(struct sr_nat *nat,
   mapping->ip_int = ip_int; // set the internal ip address
   mapping->aux_int = aux_int; // set the internal port or icmp id
   mapping->type = type; // set type 
+  mapping->last_updated = time(null); // set it to current time
   mapping->next = nat->mappings;
-  
+ 
   /* What else do we need to set in the mapping? */
   /*perhaps need to set time, use time(null) */
   /* look at arp_cache for this part */
