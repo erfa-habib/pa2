@@ -92,9 +92,15 @@ struct sr_nat_mapping *sr_nat_insert_mapping(struct sr_nat *nat,
   uint32_t ip_int, uint16_t aux_int, sr_nat_mapping_type type ) {
 
   pthread_mutex_lock(&(nat->lock));
-
+  
   /* handle insert here, create a mapping, and then return a copy of it */
-  struct sr_nat_mapping *mapping = NULL;
+  struct sr_nat_mapping *mapping = malloc(sizeof(sr_nat_mapping)); 
+  mapping->ip_int = ip_int; // set the internal ip address
+  mapping->aux_int = aux_int; // set the internal port or icmp id
+  mapping->type = type; // set type 
+  mapping->next = nat->mappings;
+  
+  /* look at arp_cache for this part */
 
   pthread_mutex_unlock(&(nat->lock));
   return mapping;
