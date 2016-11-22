@@ -31,6 +31,10 @@ struct sr_nat_mapping {
 
 struct sr_nat {
   /* add any fields here */
+  /*my addition:
+  add ICMP query timeout interval here
+  tcp idle timeout
+  tcp transitory idle timeout   */
   struct sr_nat_mapping *mappings;
 
   /* threading */
