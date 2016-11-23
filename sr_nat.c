@@ -113,31 +113,40 @@ struct sr_nat_mapping *sr_nat_insert_mapping(struct sr_nat *nat,
   mapping->aux_int = aux_int; // set the internal port or icmp id
   mapping->type = type; // set type 
   mapping->last_updated = time(null); // set it to current time
+  
 
-  /* for icmp, map internal address and internal identifier to a globally unique identifier */
-     /* start at zero */
-     uint16_t unique_id = 0; 
-     int found_next_available_id = 0; 
-    while (!found_next_available_id) {
-	sr_nat_mapping * this_mapping = nat->mappings;
-        while (this_mapping != null) {
-		if (this_mapping->aux_ext == unique_id) {
- 			unique_id++;
-			break;
+  if (type == nat_mapping_icmp) {
+  	/* for icmp, map internal address and internal identifier to a globally unique identifier */
+    	 /* start at zero */
+    	 uint16_t unique_id = 0; 
+    	 int found_next_available_id = 0; 
+  	  while (!found_next_available_id) {
+		sr_nat_mapping * this_mapping = nat->mappings;
+       		 while (this_mapping != null) {
+			if (this_mapping->aux_ext == unique_id) {
+ 				unique_id++;
+				break;
+			}
+			this_mapping = this_mapping->next;
 		}
-		this_mapping = this_mapping->next;
-	}
-        /* went through all of the mappings and didn't find the unique id */
-        if (this_mapping == null) {
-		found_next_available_id = 1;
-	}
-   }
+       	 /* went through all of the mappings and didn't find the unique id */
+      		  if (this_mapping == null) {
+			found_next_available_id = 1;
+		}
+   	}
+    mapping->conns = null; /* null for ICMP */ 
+  } else if (type == nat_mapping_tcp) {
+	/* need to make sure port we map to start from a specific number */
 
+
+
+  }
   /* set the unique id */ 
   mapping->aux_ext = unique_id; 
   
-  mapping->conns = null; /* null for ICMP */ 
-  /* set the external ip ? ? */ 
+ // mapping->conns = null; /* null for ICMP */ 
+  /* set the external address to the external address of the nat  ? ? */ 
+  // mapping->ip_ext = 
 
   /* add it to the list of mappings */
   mapping->next = nat->mappings;
