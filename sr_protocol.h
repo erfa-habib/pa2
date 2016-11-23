@@ -116,7 +116,7 @@ struct sr_icmp_t3_hdr {
   uint8_t data[ICMP_DATA_SIZE];
 
 } __attribute__ ((packed)) ;
-typedef struct sr_icmp_t3_hdr sr_icmp_t3_hdr_t;
+typedef struct sr_icmp_t8_hdr sr_icmp_t8_hdr_t;
 
 /* Structure of an ICMP header
 Based off of the Wikipedia article on ICMP.

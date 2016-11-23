@@ -18,6 +18,22 @@ struct sr_nat_connection {
   struct sr_nat_connection *next;
 };
 
+/* Structure of a type8 ICMP header
+ */
+struct sr_icmp_t3_hdr {
+  uint8_t icmp_type;
+  uint8_t icmp_code;
+  uint16_t icmp_sum;
+  /* added identifier and sequence number */
+  uint16_t identifier;
+  uint16_t sequence_num;
+  uint16_t unused;
+  uint16_t next_mtu;
+  uint8_t data[ICMP_DATA_SIZE];
+
+} __attribute__ ((packed)) ;
+typedef struct sr_icmp_t8_hdr sr_icmp_t8_hdr_t;
+
 struct sr_nat_mapping {
   sr_nat_mapping_type type;
   uint32_t ip_int; /* internal ip addr */

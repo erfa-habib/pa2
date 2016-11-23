@@ -113,10 +113,37 @@ struct sr_nat_mapping *sr_nat_insert_mapping(struct sr_nat *nat,
   mapping->aux_int = aux_int; // set the internal port or icmp id
   mapping->type = type; // set type 
   mapping->last_updated = time(null); // set it to current time
+
+  /* for icmp, map internal address and internal identifier to a globally unique identifier */
+     /* start at zero */
+     uint16_t unique_id = 0; 
+     int found_next_available_id = 0; 
+    while (!found_next_available_id) {
+	sr_nat_mapping * this_mapping = nat->mappings;
+        while (this_mapping != null) {
+		if (this_mapping->aux_ext == unique_id) {
+ 			unique_id++;
+			break;
+		}
+		this_mapping = this_mapping->next;
+	}
+        /* went through all of the mappings and didn't find the unique id */
+        if (this_mapping == null) {
+		found_next_available_id = 1;
+	}
+   }
+
+  /* set the unique id */ 
+  mapping->aux_ext = unique_id; 
+  
+  mapping->conns = null; /* null for ICMP */ 
+  /* set the external ip ? ? */ 
+
+  /* add it to the list of mappings */
   mapping->next = nat->mappings;
  
   /* What else do we need to set in the mapping? */
-  /*perhaps need to set time, use time(null) */
+
   /* look at arp_cache for this part */
 
   pthread_mutex_unlock(&(nat->lock));
