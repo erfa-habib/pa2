@@ -101,6 +101,23 @@ struct sr_icmp_t3_hdr {
 } __attribute__ ((packed)) ;
 typedef struct sr_icmp_t3_hdr sr_icmp_t3_hdr_t;
 
+
+/* Structure of a type8 ICMP header
+ */
+struct sr_icmp_t3_hdr {
+  uint8_t icmp_type;
+  uint8_t icmp_code;
+  uint16_t icmp_sum;
+  /* added identifier and sequence number */
+  uint16_t identifier;
+  uint16_t sequence_num;
+  uint16_t unused;
+  uint16_t next_mtu;
+  uint8_t data[ICMP_DATA_SIZE];
+
+} __attribute__ ((packed)) ;
+typedef struct sr_icmp_t3_hdr sr_icmp_t3_hdr_t;
+
 /* Structure of an ICMP header
 Based off of the Wikipedia article on ICMP.
 I don't understand why there is no unused
