@@ -117,7 +117,8 @@ struct sr_nat_mapping *sr_nat_insert_mapping(struct sr_nat *nat,
 
   if (type == nat_mapping_icmp) {
   	/* for icmp, map internal address and internal identifier to a globally unique identifier */
-    	 /* start at zero */
+    	 /* start at zero 
+	 should we also just look through the ones that are icmp ? ? */
     	 uint16_t unique_id = 0; 
     	 int found_next_available_id = 0; 
   	  while (!found_next_available_id) {
@@ -136,7 +137,8 @@ struct sr_nat_mapping *sr_nat_insert_mapping(struct sr_nat *nat,
    	}
     mapping->conns = null; /* null for ICMP */ 
   } else if (type == nat_mapping_tcp) {
-	/* need to make sure port we map to start from a specific number */
+	/* need to make sure port we map to start from a specific number
+	greater than 1023*/ 
 
 
 
