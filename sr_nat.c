@@ -108,11 +108,11 @@ struct sr_nat_mapping *sr_nat_insert_mapping(struct sr_nat *nat,
   pthread_mutex_lock(&(nat->lock));
   
   /* handle insert here, create a mapping, and then return a copy of it */
-  struct sr_nat_mapping *mapping = malloc(sizeof(sr_nat_mapping)); 
+  struct sr_nat_mapping *mapping = (struct sr_nat_mapping *) malloc(sizeof(sr_nat_mapping)); 
   mapping->ip_int = ip_int; // set the internal ip address
   mapping->aux_int = aux_int; // set the internal port or icmp id
   mapping->type = type; // set type 
-  mapping->last_updated = time(null); // set it to current time
+  mapping->last_updated = time(NULL); // set it to current time
   
 
   if (type == nat_mapping_icmp) {
@@ -135,19 +135,18 @@ struct sr_nat_mapping *sr_nat_insert_mapping(struct sr_nat *nat,
 			found_next_available_id = 1;
 		}
    	}
-    mapping->conns = null; /* null for ICMP */ 
+    mapping->conns = null; /* null for ICMP */
+    mapping->aux_ext = unique_id;  /* set the unique id */-+
   } else if (type == nat_mapping_tcp) {
 	/* need to make sure port we map to start from a specific number
 	greater than 1023*/ 
+        /* set mapping->conns */ 
 
 
 
   }
-  /* set the unique id */ 
-  mapping->aux_ext = unique_id; 
   
- // mapping->conns = null; /* null for ICMP */ 
-  /* set the external address to the external address of the nat  ? ? */ 
+    /* set the external address to the external address of the nat  ? ? */ 
   // mapping->ip_ext = 
 
   /* add it to the list of mappings */
@@ -156,7 +155,12 @@ struct sr_nat_mapping *sr_nat_insert_mapping(struct sr_nat *nat,
   /* What else do we need to set in the mapping? */
 
   /* look at arp_cache for this part */
+  /* need to return copy for thread safety */ 
+  if (mapping) {
+     struct sr_nat_mapping * copy = (struct sr_nat_mapping *) malloc(sizeof(sr_nat_mapping));
+     memcpy(copy, mapping, sizeof(sr_nat_mapping));
+  }
 
   pthread_mutex_unlock(&(nat->lock));
-  return mapping;
+  return copy;
 }

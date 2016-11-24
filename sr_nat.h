@@ -12,15 +12,39 @@ typedef enum {
   /* nat_mapping_udp, */
 } sr_nat_mapping_type;
 
+
+typedef enum {
+  connection_closed; /* may not be needed as connection is freed */
+  connection_listen;
+  connection_syn_sent;
+  connection_syn_received;
+  connection_established;
+  connection_fin_wait_1;
+  connection_fin_wait_2;
+  connection_close_wait;
+  connection_closing;
+  connection_last_ack;
+  connection_time_wait;
+} tcp_connection_state;
+
 struct sr_nat_connection {
   /* add TCP connection state data members here */
+  /* From the handout: 
 
+       No need to track sequence numbers, or window values
+       or ensure TCP packets are in proper order to the end hosts. 
+       Keep only the information that is useful to the NAT for establishing or clearing mappings.
+  */ 
+
+  /* pair of sockets ? */ 
+  /* what other state do we need to keep track of ? */
+  tcp_connection_state state;
   struct sr_nat_connection *next;
 };
 
 /* Structure of a type8 ICMP header
  */
-struct sr_icmp_t3_hdr {
+struct sr_icmp_t8_hdr {
   uint8_t icmp_type;
   uint8_t icmp_code;
   uint16_t icmp_sum;
