@@ -6,25 +6,26 @@
 #include <time.h>
 #include <pthread.h>
 
+uint8_t ICMP_DATA_SIZE = 100;
+
 typedef enum {
   nat_mapping_icmp,
   nat_mapping_tcp
   /* nat_mapping_udp, */
 } sr_nat_mapping_type;
 
-
 typedef enum {
-  connection_closed; /* may not be needed as connection is freed */
-  connection_listen;
-  connection_syn_sent;
-  connection_syn_received;
-  connection_established;
-  connection_fin_wait_1;
-  connection_fin_wait_2;
-  connection_close_wait;
-  connection_closing;
-  connection_last_ack;
-  connection_time_wait;
+  connection_closed, /* may not be needed as connection is freed */
+  connection_listen,
+  connection_syn_sent,
+  connection_syn_received,
+  connection_established,
+  connection_fin_wait_1,
+  connection_fin_wait_2,
+  connection_close_wait,
+  connection_closing,
+  connection_last_ack,
+  connection_time_wait
 } tcp_connection_state;
 
 struct sr_nat_connection {
@@ -43,19 +44,17 @@ struct sr_nat_connection {
 };
 
 /* Structure of a type8 ICMP header
- */
+*/
 struct sr_icmp_t8_hdr {
   uint8_t icmp_type;
   uint8_t icmp_code;
-  uint16_t icmp_sum;
-  /* added identifier and sequence number */
+  uint16_t icmp_sum;  /* added identifier and sequence number */
   uint16_t identifier;
   uint16_t sequence_num;
   uint16_t unused;
   uint16_t next_mtu;
   uint8_t data[ICMP_DATA_SIZE];
-
-} __attribute__ ((packed)) ;
+} __attribute__ ((packed));
 typedef struct sr_icmp_t8_hdr sr_icmp_t8_hdr_t;
 
 struct sr_nat_mapping {
@@ -75,6 +74,7 @@ struct sr_nat {
   add ICMP query timeout interval here
   tcp idle timeout
   tcp transitory idle timeout   */
+
   struct sr_nat_mapping *mappings;
 
   /* threading */
